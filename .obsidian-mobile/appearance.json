@@ -1,0 +1,19 @@
+{
+  "accentColor": "",
+  "cssTheme": "ITS Theme",
+  "enabledCssSnippets": [
+    "S - Encoded Icons",
+    "S - Encoded Fonts",
+    "Custom CSS",
+    "customtag",
+    "Font-Nunito",
+    "Font-spectral",
+    "Note Icon",
+    "PathfinderFonts",
+    "PathfinderFormats",
+    "pf2-cnfont",
+    "pf2e-actions-font",
+    "style-settings-color",
+    "cssmanager"
+  ]
+}

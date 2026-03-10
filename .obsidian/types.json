@@ -1,0 +1,18 @@
+{
+  "types": {
+    "aliases": "aliases",
+    "cssclasses": "multitext",
+    "tags": "tags",
+    "Page Status": "checkbox",
+    "dg-publish": "checkbox",
+    "dg": "checkbox",
+    "dg-home": "checkbox",
+    "dg-pinned": "checkbox",
+    "dg-show-inline-title": "checkbox",
+    "NOTE_ICON_INTERNAL_LINKS": "checkbox",
+    "dg-hide": "checkbox",
+    "Divine Titles": "multitext",
+    "Worshippers": "multitext",
+    "topic": "multitext"
+  }
+}

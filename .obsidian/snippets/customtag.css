@@ -1,0 +1,171 @@
+.tag{
+    --tag-font-size:0.8rem;
+    --tag-keyattr1-c: saddlebrown;
+    --tag-keyattr2-c:rgb(12, 86, 75);
+    --tag-spellcastingtype-c:rgb(33, 54, 86);
+    --tag-spellorigin-c:
+}
+
+.tag[href="#KeyAttribute/DEX"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#KeyAttribute/DEX"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:var(--tag-keyattr1-c);
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "DEX";
+}
+
+
+.tag[href="#KeyAttribute/STR"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#KeyAttribute/STR"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:var(--tag-keyattr1-c);
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "STR";
+}
+
+.tag[href="#KeyAttribute/CON"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#KeyAttribute/CON"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:var(--tag-keyattr1-c);
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "CON";
+}
+
+.tag[href="#KeyAttribute/WIS"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#KeyAttribute/WIS"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:var(--tag-keyattr2-c);
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "WIS";
+}
+
+.tag[href="#KeyAttribute/CHA"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#KeyAttribute/CHA"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:var(--tag-keyattr2-c);
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "CHA";
+}
+
+.tag[href="#KeyAttribute/INT"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#KeyAttribute/INT"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:var(--tag-keyattr2-c);
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "INT";
+}
+
+.tag[href="#职业类型/物理"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#职业类型/物理"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:brown;
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "物理职业";
+}
+
+.tag[href="#职业类型/施法"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#职业类型/施法"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:darkslateblue ;
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "施法职业";
+}
+
+.tag[href="#职业类型/混合"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#职业类型/混合"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:darkmagenta ;
+    color: rgb(232, 230, 227);
+    padding: 3px 3px;
+    border-radius: 3px;
+    letter-spacing: -0.00ch;
+    content: "混合职业";
+}
+
+
+.tag[href="#施法根源/原能"] {
+    font-size: 0;
+    padding: 0;
+}
+
+.tag[href="#施法根源/原能"]:after{
+    font-size: var(--tag-font-size);
+    font-weight: 100;
+    background-color:forestgreen ;
+    color: rgb(232, 230, 227);
+    padding: 3px;
+    border-radius: 10px;
+    letter-spacing: -0.00ch;
+    content: "原能";
+}
+
+

@@ -1,0 +1,140 @@
+.dataview ul > li:not(.task-list-item)::before {
+    margin-left: -2em;
+    margin-right: 5px;
+}
+
+body.css-settings-manager {
+    --callout-font: var(--font-text-override);
+    --file-line-width: 800px;
+    --page-width: 800px;   
+}
+
+
+
+.embed-clean .markdown-embed-content {
+    max-height: unset;
+}
+
+body {
+    --h4-weight: 700;
+    --h5-weight: 700;
+    --font-text-override: 'Nunito';
+    --p-spacing: 0.6em;
+}
+
+.markdown-rendered div:has( > :is(p,pre,table,ul,ol)) + div > :is(h1,h2,h3,h4,h5,h6) {
+    margin-top: var(--heading-spacing-top);
+}
+
+.markdown-rendered div:has( > :is(h1,h2,h3,h4,h5)) + div > :is(h1,h2,h3,h4,h5,h6) {
+    margin-top: var(--heading-spacing);
+}
+
+p, .markdown-rendered p{
+    margin-block-start: 0px;
+}
+
+h2, .markdown-rendered h2, .is-live-preview .HyperMD-header-2.cm-line{
+    --heading-spacing-top: 2rem;
+}
+
+h3, .markdown-rendered h3, .is-live-preview .HyperMD-header-3.cm-line{
+    --heading-spacing-top: 2rem;
+}
+
+h4, .markdown-rendered h4, .is-live-preview .HyperMD-header-4.cm-line{
+    text-transform: uppercase;
+    --heading-spacing-top: 2rem;
+
+}
+
+h5, .markdown-rendered h5, .is-live-preview .HyperMD-header-4.cm-line{
+    --heading-spacing-top: 2rem;
+}
+
+
+.nav-folder.mod-root>.nav-folder-title::before {
+    align-self: baseline;
+}
+
+.callout.callout .task-list-item-checkbox, ul.contains-task-list .task-list-item-checkbox {
+    margin-inline-start: calc(var(--checkbox-size) * -1 - 4px) !important;
+}
+
+
+
+.bookcover {
+    margin: 10px;
+    display: inline-block;
+    width: 300px;
+    text-align: center;
+    position: relative;
+    height: 200px;
+    background: #000;
+    border-radius: 5px;
+    border: 1.5px solid #a38240;
+    overflow: hidden;
+}
+
+.bookcover .img,
+.bookcover img {
+    max-width: 100%;
+    max-height: 100%;
+    height: 100%;
+    object-fit: cover
+}
+
+.bookcover .excerpt {
+    display: none
+}
+
+.bookcover a {
+    color: #000
+}
+
+.bookcover a:hover {
+    background: #000000;
+    border-color: #cbac5b;
+    color: black;
+}
+
+.bookcover a,
+.bookcover a:hover {
+    text-decoration: none
+}
+
+/* 
+.bookcover a:hover .booktitle {
+    background-color: #962626;
+    color: #fff
+} */
+
+.bookcover a:hover .excerpt {
+    display: block;
+    position: absolute;
+    top: 10%;
+    width: 200px;
+    left: 50px;
+    color: #cbac5b;
+    text-align: center;
+    -webkit-transition: all .5s
+}
+
+.bookcover a:hover img {
+    opacity: .35
+}
+
+.booktitle {
+    position: absolute;
+    left: 20%;
+    top: 70%;
+    width: 60%;
+    background: #fff;
+    padding: 5px 10px 5px 10px;
+    max-width: 200px;
+    text-align: center;
+    background-color: transparent;
+    -webkit-transition: all .5s;
+    color: #e6c86e;
+    font-family: Taroca;
+}

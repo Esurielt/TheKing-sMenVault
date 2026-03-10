@@ -1,0 +1,718 @@
+body.css-settings-manager {
+    --hr-icon-font: its;
+    --hr-width: 100%;
+    --hr-thickness: 1px;
+    --header-border-line-height: 2px;
+    --h2-border-line-width: 0%;
+    --h3-border-line-width: 0%;
+    --h2-border-line-height: 0px;
+    --h3-border-line-height: 0px;
+    --h2-text-align: center;
+    --h1-text-align: center;
+    --h3-text-align: left;
+    --h1-size: 40px;
+    --h2-size: 36px;
+    --h4-size: 26px;
+    --h5-size: 22px;
+    --h6-size: 18px;
+    --h3-size: 32px;
+    --h1-border-line-height: 0px;
+    --h4-border-line-height: 0px;
+    --h5-border-line-height: 0px;
+    --h6-border-line-height: 0px;
+    --h5-border-line-width: 0%;
+    --h4-border-line-width: 0%;
+    --h1-border-line-width: 0%;
+    --h1-font: "Taroca";
+    --h2-font: "Taroca";
+    --h3-font: 'Norwester', 'Oswald', sans-serif;
+    --header-weight: 400;
+    --h4-font: "ff-good-web-pro-condensed", 'Oswald', sans-serif;
+    --h5-font: 'ff-good-web-pro-condensed', 'Oswald', sans-serif;
+    --h6-font: 'ff-good-web-pro-condensed', 'Oswald', sans-serif;
+    --heading-spacing: 0px;
+    --heading-spacing-bottom: 0px;
+    --heading-spacing-top: 20px;
+    --radius-s: 2px;
+    --scrollbar-width: 10px;
+    --table-cell-padding-x: 10px;
+    --vault-font: var(--h1-font), 'Calisto MT', 'Palatino Black', 'Book Antiqua', 'Georgia', 'Suez One', serif;
+    --vault-name-font-weight: 400px;
+    --vault-name-font-size: 24px;
+    --vault-icon-image: url(https://i.imgur.com/TxmyUl0.png);
+    --default-font: "ff-good-web-pro", Nunito, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Microsoft YaHei Light', sans-serif;
+    --indentation-guide-width: 1px;
+}
+
+body.css-settings-manager {
+    --callout-font: 'ff-good-web-pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+
+.theme-dark{
+    --note-bg-color: #161a20;
+}
+
+.theme-light{
+    --note-bg-color: #d8d7d6;
+}
+
+table{
+    font-family: var(--callout-font);
+}
+
+
+.callout-title{
+    font-family: var(--h4-font);
+    font-size: 1.2em;
+    color: var(--callout-title-color)
+}
+
+.callout.callout.callout{
+    --callout-dark: 202, 202, 202;
+
+}
+.callout, .callout .callout-content.internal-link{
+    font-family: var(--callout-font);
+    border-radius: 5px;
+    --callout-padding: var(--size-4-4);
+
+}
+.callout {
+    font-size: 1em;
+}
+
+.callout p{
+    margin-block-start: 0.5rem;
+    margin-block-end:0rem;
+}
+
+
+
+
+/* Callout - quote / pf2-header-paragrah */
+body:not(.default-callout-quote, .callout-no-quote) .callout.callout[data-callout=quote] {
+    --callout-icon: "";
+    --callout-color: var(--color-accent);
+    --callout-padding: var(--size-4-5);
+    --callout-border-width: 0 0 0 0px;
+    --callout-border-opacity: .7;
+    display: flex;
+    flex-direction: column-reverse;
+    box-shadow: 0px 0px 0 var(--outline);
+  }
+
+body:not(.default-callout-quote, .callout-no-quote) .callout.callout[data-callout=quote] p{
+    font-family: 'Spectral', serif; 
+    font-style:Italic; 
+    font-size:1.1em; 
+    font-weight:400; 
+    color:var(--theme-rainbow-1)
+}
+
+
+/* Callout - pf2info */
+.callout.callout[data-callout="pf2info"]{
+    --callout-color: 98,78,58;
+    background-color: var(--theme-rainbow-1);
+    color: var(--dark-sidebar);
+    --callout-title-color: var(--dark-sidebar);
+}
+.callout.callout[data-callout="pf2info"] > .callout-title{
+    text-transform: uppercase;
+    gap: 0px;
+}
+
+.callout.callout[data-callout="pf2info"] > .callout-title .callout-icon{
+    width: 0;
+    height: 0;
+}
+.callout.callout[data-callout="pf2info"] > .callout-title .callout-fold .svg-icon{
+    color: grey;
+}
+
+
+/* Callout - pf2note */
+.callout.callout[data-callout="pf2note"]{
+    --callout-color: 98,78,58;
+    color: var(--soft-text);
+    --callout-title-color: var(--soft-text);
+}
+.callout.callout[data-callout="pf2note"] > .callout-title{
+    text-transform: uppercase;
+    gap: 0px;
+}
+
+.callout.callout[data-callout="pf2note"] > .callout-title .callout-icon{
+    width: 0;
+    height: 0;
+}
+.callout.callout[data-callout="pf2note"] > .callout-title .callout-fold .svg-icon{
+    color: grey;
+}
+/* Callout - pf2rule */
+.callout.callout[data-callout="pf2rule"]{
+    /* --callout-color: 255, 208, 86; */
+    /* --callout-color:var(--callout-yellow); */
+    background-color: var(--note-bg-color);
+    color: var(--soft-text);
+    --callout-title-color: var(--soft-text);
+}
+
+.callout.callout[data-callout="pf2rule"] > .callout-title .callout-icon{
+    width: 0;
+    height: 0;
+}
+
+.callout.callout[data-callout="pf2rule"] > .callout-title{
+    gap: 0px;
+}
+.callout.callout[data-callout="pf2rule"] > .callout-title .callout-fold .svg-icon{
+    color: grey;
+}
+
+/* pf2 statblock html template */
+.pf2block::after,
+.pf2block::before {
+    box-sizing: border-box
+}
+
+.theme-dark .pf2block{
+    background-color: var(--note-bg-color);
+}
+.theme-light .pf2block{
+    background-color: var(--note-bg-color);
+}
+
+.pf2block{
+    font-family: 'ff-good-web-pro', 'Oswald', sans-serif;
+    line-height: 120%;
+    font-size: var(--font-text-size);
+    text-align: left;
+    width: 100%;
+    border-radius: 0.5em;
+    padding: 0.8em;
+    background-color: var(--note-bg-color);
+}
+
+
+
+.pf2block :is(h1,h2){
+    margin: 0;
+    font-family: 'ff-good-web-pro-condensed', 'Oswald', sans-serif;
+    font-size: 1.5em;
+    padding: 0;
+    line-height: 1;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-align: left;
+    color:rgb(237, 237, 237);
+}
+.pf2block h2{
+    color:grey;
+}
+
+.hang {
+    padding-left: 1em;
+    text-indent: -1em;
+}
+
+.pf-trait {
+    display: inline-block;
+    font-family: 'ff-good-web-pro-condensed', sans-serif;
+    font-size: 0.8em;
+    line-height: 1;
+    text-transform: uppercase;
+    background: #5d0000;
+    padding-left: 0.5em !important;
+    padding-right: 0.5em;
+    padding-top: 0.4em;
+    padding-bottom: 0.25em;
+    color: #fff;
+    /* text-shadow: 0 0 0 #fff; */
+    font-weight: bold;
+    margin: 0;
+    border: 2px solid #d8c384;
+    min-width: 5em;
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+
+
+.pf-trait, .pf-trait .internal-link, .pf-trait .external-link, .pf-trait .internal-link.is-unresolved {
+    font-family: 'ff-good-web-pro-condensed', sans-serif;
+    /* font-size: 0.9em; */
+    line-height: 1;
+    text-transform: uppercase;
+    color: #fff;
+    /* text-shadow: 0 0 0 #fff; */
+    font-weight: bold;
+    /* min-width: 5em; */
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+
+
+
+.pf-trait-edge {
+    padding: 0.4em 0 0.25em 0 !important;
+    width: 3px;
+    min-width: 0;
+    overflow: hidden;
+    vertical-align: top;
+    background-color: #d8c384;
+}
+
+.pf-traits {
+    line-height: 1;
+    display: inline-block;
+    background: #d8c384;
+    margin: 0;
+    /* padding: 0 0.125rem; */
+}
+
+.pf-trait-size {
+    background: #3a7a58;
+    min-width: auto;
+}
+
+.pf-trait-type {
+    background: #004316;
+    min-width: auto;
+}
+
+.pf-trait-align {
+    background: #566193;
+    min-width: auto;
+}
+
+.pf-trait-rare {
+    background: #002564;
+    min-width: auto;
+}
+
+.pf-trait-uncommon {
+    background: #98503c;
+    min-width: auto;
+}
+
+.pf-trait-unique {
+    background: #54166d;
+    min-width: auto;
+}
+
+.pf-trait-limited {
+    background: #2e2e2e;
+    min-width: auto;
+}
+
+
+.ml-auto,
+.mx-auto {
+    margin-left: auto !important
+}
+
+.d-none {
+    display: none !important
+}
+
+.d-inline {
+    display: inline !important
+}
+
+.d-inline-block {
+    display: inline-block !important
+}
+
+.d-block {
+    display: block !important
+}
+
+.d-table {
+    display: table !important
+}
+
+.d-table-row {
+    display: table-row !important
+}
+
+.d-table-cell {
+    display: table-cell !important
+}
+
+.d-flex {
+    display: flex !important
+}
+
+.d-inline-flex {
+    display: inline-flex !important
+}
+
+@media (min-width:576px) {
+    .d-sm-none {
+        display: none !important
+    }
+
+    .d-sm-inline {
+        display: inline !important
+    }
+
+    .d-sm-inline-block {
+        display: inline-block !important
+    }
+
+    .d-sm-block {
+        display: block !important
+    }
+
+    .d-sm-table {
+        display: table !important
+    }
+
+    .d-sm-table-row {
+        display: table-row !important
+    }
+
+    .d-sm-table-cell {
+        display: table-cell !important
+    }
+
+    .d-sm-flex {
+        display: flex !important
+    }
+
+    .d-sm-inline-flex {
+        display: inline-flex !important
+    }
+}
+
+@media (min-width:768px) {
+    .d-md-none {
+        display: none !important
+    }
+
+    .d-md-inline {
+        display: inline !important
+    }
+
+    .d-md-inline-block {
+        display: inline-block !important
+    }
+
+    .d-md-block {
+        display: block !important
+    }
+
+    .d-md-table {
+        display: table !important
+    }
+
+    .d-md-table-row {
+        display: table-row !important
+    }
+
+    .d-md-table-cell {
+        display: table-cell !important
+    }
+
+    .d-md-flex {
+        display: flex !important
+    }
+
+    .d-md-inline-flex {
+        display: inline-flex !important
+    }
+}
+
+@media (min-width:992px) {
+    .d-lg-none {
+        display: none !important
+    }
+
+    .d-lg-inline {
+        display: inline !important
+    }
+
+    .d-lg-inline-block {
+        display: inline-block !important
+    }
+
+    .d-lg-block {
+        display: block !important
+    }
+
+    .d-lg-table {
+        display: table !important
+    }
+
+    .d-lg-table-row {
+        display: table-row !important
+    }
+
+    .d-lg-table-cell {
+        display: table-cell !important
+    }
+
+    .d-lg-flex {
+        display: flex !important
+    }
+
+    .d-lg-inline-flex {
+        display: inline-flex !important
+    }
+}
+
+@media (min-width:1200px) {
+    .d-xl-none {
+        display: none !important
+    }
+
+    .d-xl-inline {
+        display: inline !important
+    }
+
+    .d-xl-inline-block {
+        display: inline-block !important
+    }
+
+    .d-xl-block {
+        display: block !important
+    }
+
+    .d-xl-table {
+        display: table !important
+    }
+
+    .d-xl-table-row {
+        display: table-row !important
+    }
+
+    .d-xl-table-cell {
+        display: table-cell !important
+    }
+
+    .d-xl-flex {
+        display: flex !important
+    }
+
+    .d-xl-inline-flex {
+        display: inline-flex !important
+    }
+}
+
+@media print {
+    .d-print-none {
+        display: none !important
+    }
+
+    .d-print-inline {
+        display: inline !important
+    }
+
+    .d-print-inline-block {
+        display: inline-block !important
+    }
+
+    .d-print-block {
+        display: block !important
+    }
+
+    .d-print-table {
+        display: table !important
+    }
+
+    .d-print-table-row {
+        display: table-row !important
+    }
+
+    .d-print-table-cell {
+        display: table-cell !important
+    }
+
+    .d-print-flex {
+        display: flex !important
+    }
+
+    .d-print-inline-flex {
+        display: inline-flex !important
+    }
+}
+
+.pf2block .text-faded {
+    color: #aaa;
+}
+
+.pf2block .header-img {
+    height: 0.8em;
+    vertical-align: baseline;
+    transform: translateY(0.05em);
+    width: auto;
+}
+
+.pf2block .text-img {
+    height: 1em;
+    vertical-align: baseline;
+    width: auto;
+    transform: translateY(0.15em);
+}
+
+.pf2block .shadow-in {
+    box-shadow: inset 0 1px 3px #0003;
+}
+
+.pf2block .bg-pf {
+    background-color: #f3f2ee;
+}
+
+.pf2block .text-pf {
+    line-height: 140%;
+    text-align: justify;
+    /* font-size: 1.1em; */
+    font-family: 'ff-good-web-pro';
+    margin-top: var(--p-spacing);
+}
+
+.pf2block .text-pre {
+    white-space: pre-wrap
+}
+
+.pf2block .pad {
+    padding-left: 1em;
+}
+
+.pf2block .indent {
+    text-indent: 1em;
+}
+
+.pf2block .w-600 {
+    min-width: 600px;
+    max-width: 600px;
+}
+
+.pf2block .w-800 {
+    min-width: 800px;
+    max-width: 800px;
+}
+
+
+@media (max-width: 1080px) {
+    .hide-md {
+        display: none;
+    }
+
+    .w-800,
+    .w-600 {
+        min-width: 300px;
+    }
+}
+
+@media (max-width: 700px) {
+    .mobile {
+        display: block;
+    }
+}
+
+.lds-roller {
+    display: block;
+    position: relative;
+    width: 80px;
+    height: 80px;
+}
+
+.lds-roller div {
+    animation: lds-roller 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    transform-origin: 40px 40px;
+}
+
+.lds-roller div:after {
+    content: " ";
+    display: block;
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #444;
+    margin: -4px 0 0 -4px;
+}
+
+.lds-roller div:nth-child(1) {
+    animation-delay: -0.036s;
+}
+
+.lds-roller div:nth-child(1):after {
+    top: 63px;
+    left: 63px;
+}
+
+.lds-roller div:nth-child(2) {
+    animation-delay: -0.072s;
+}
+
+.lds-roller div:nth-child(2):after {
+    top: 68px;
+    left: 56px;
+}
+
+.lds-roller div:nth-child(3) {
+    animation-delay: -0.108s;
+}
+
+.lds-roller div:nth-child(3):after {
+    top: 71px;
+    left: 48px;
+}
+
+.lds-roller div:nth-child(4) {
+    animation-delay: -0.144s;
+}
+
+.lds-roller div:nth-child(4):after {
+    top: 72px;
+    left: 40px;
+}
+
+.lds-roller div:nth-child(5) {
+    animation-delay: -0.18s;
+}
+
+.lds-roller div:nth-child(5):after {
+    top: 71px;
+    left: 32px;
+}
+
+.lds-roller div:nth-child(6) {
+    animation-delay: -0.216s;
+}
+
+.lds-roller div:nth-child(6):after {
+    top: 68px;
+    left: 24px;
+}
+
+.lds-roller div:nth-child(7) {
+    animation-delay: -0.252s;
+}
+
+.lds-roller div:nth-child(7):after {
+    top: 63px;
+    left: 17px;
+}
+
+.lds-roller div:nth-child(8) {
+    animation-delay: -0.288s;
+}
+
+.lds-roller div:nth-child(8):after {
+    top: 56px;
+    left: 12px;
+}
+
+@keyframes lds-roller {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}

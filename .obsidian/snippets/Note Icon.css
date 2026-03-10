@@ -1,0 +1,57 @@
+body {
+    --note-icon-1: url(/img/person-play.svg);
+    --note-icon-2: url(/img/treasure-chest.svg);
+    --note-icon-3: url(/img/coach-lamp-variant.svg);
+    --note-icon-fallback: url(/img/scroll.svg);
+  }
+
+body.title-note-icon .cm-s-obsidian > header > h1[data-note-icon]::before,
+body.filetree-note-icon .filename[data-note-icon]::before,
+body.links-note-icon .internal-link[data-note-icon]::before,
+body.backlinks-note-icon .backlink[data-note-icon]::before {
+    content: " ";
+    display: inline-block;
+    width: 1em;
+    height: 1em; 
+    padding-right: .5em;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    background-image: var(--note-icon-fallback);
+    vertical-align: -0.2em;
+}
+
+body.title-note-icon .cm-s-obsidian > header > h1[data-note-icon="dice"]::before,
+body.filetree-note-icon .filename[data-note-icon="dice"]::before,
+body.links-note-icon .internal-link[data-note-icon="dice"]::before,
+body.backlinks-note-icon .backlink[data-note-icon="dice"]::before {
+  background-image: url(/img/dice-d20.svg);
+}
+
+body.title-note-icon .cm-s-obsidian > header > h1[data-note-icon="lamp"]::before,
+body.filetree-note-icon .filename[data-note-icon="lamp"]::before,
+body.links-note-icon .internal-link[data-note-icon="lamp"]::before,
+body.backlinks-note-icon .backlink[data-note-icon="lamp"]::before {
+  background-image: url(/img/coach-lamp-variant.svg);
+}
+
+body.title-note-icon .cm-s-obsidian > header > h1[data-note-icon="map-marker"]::before,
+body.filetree-note-icon .filename[data-note-icon="map-marker"]::before,
+body.links-note-icon .internal-link[data-note-icon="map-marker"]::before,
+body.backlinks-note-icon .backlink[data-note-icon="map-marker"]::before {
+  background-image: url(/img/map-marker-solid.svg);
+}
+
+body.title-note-icon .cm-s-obsidian > header > h1[data-note-icon="swirl"]::before,
+body.filetree-note-icon .filename[data-note-icon="swirl"]::before,
+body.links-note-icon .internal-link[data-note-icon="swirl"]::before,
+body.backlinks-note-icon .backlink[data-note-icon="swirl"]::before {
+  background-image: url(/img/fluffy-swirl.svg);
+}
+
+body.title-note-icon .cm-s-obsidian > header > h1[data-note-icon="person"]::before,
+body.filetree-note-icon .filename[data-note-icon="person"]::before,
+body.links-note-icon .internal-link[data-note-icon="person"]::before,
+body.backlinks-note-icon .backlink[data-note-icon="person"]::before {
+  background-image: url(/img/person-box.svg);
+}

@@ -1,0 +1,19 @@
+{
+  "accentColor": "#897079",
+  "cssTheme": "AnuPpuccin",
+  "enabledCssSnippets": [
+    "S - Filetree Styling",
+    "Note Icon",
+    "Custom CSS",
+    "Font-Nunito",
+    "Font-spectral",
+    "extended-colorschemes"
+  ],
+  "translucency": false,
+  "baseFontSize": 16,
+  "textFontFamily": "Bodoni 72 Oldstyle",
+  "theme": "obsidian",
+  "interfaceFontFamily": "Noto Serif SC",
+  "baseFontSizeAction": true,
+  "monospaceFontFamily": "Source Code Pro"
+}

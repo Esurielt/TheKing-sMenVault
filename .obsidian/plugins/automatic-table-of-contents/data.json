@@ -1,0 +1,8 @@
+{
+  "defaultTitle": "Table of Content",
+  "defaultStyle": "nestedList",
+  "defaultMinLevel": 1,
+  "defaultMaxLevel": 6,
+  "defaultIncludeLinks": true,
+  "defaultHideWhenEmpty": false
+}

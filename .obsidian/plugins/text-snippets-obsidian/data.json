@@ -1,0 +1,19 @@
+{
+  "snippets_file": "snippets : It is an obsidian plugin, that replaces your selected text.\nCommon : <span class=\"pf-trait pf-trait-common\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-common\">Common</a></span>$end$\nUncommon : <span class=\"pf-trait pf-trait-uncommon\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-uncommon\">Uncommon</a></span>$end$\nRare : <span class=\"pf-trait pf-trait-rare\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-rare\">Rare</a></span>$end$\nLimited : <span class=\"pf-trait pf-trait-limited\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-limited\">Limited</a></span>\nReaction : <span class=Pathfinder>⬲</span>",
+  "snippets": [
+    "snippets : It is an obsidian plugin, that replaces your selected text.",
+    "Common : <span class=\"pf-trait pf-trait-common\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-common\">Common</a></span>$end$",
+    "Uncommon : <span class=\"pf-trait pf-trait-uncommon\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-uncommon\">Uncommon</a></span>$end$",
+    "Rare : <span class=\"pf-trait pf-trait-rare\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-rare\">Rare</a></span>$end$",
+    "Limited : <span class=\"pf-trait pf-trait-limited\"><a class = \"internal-link\" href = \"/03-rule-elements/house-rule-references/#rarity-limited\">Limited</a></span>",
+    "Reaction : <span class=Pathfinder>⬲</span>"
+  ],
+  "endSymbol": "$end$",
+  "newlineSymbol": "$nl$",
+  "stopSymbol": "$tb$",
+  "pasteSymbol": "$pst$",
+  "useTab": true,
+  "useSpace": false,
+  "wordDelimiters": "$()[]{}<>,.!?;:'\"\\/",
+  "isWYSIWYG": true
+}
