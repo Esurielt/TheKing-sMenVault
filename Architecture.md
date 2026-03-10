@@ -48,12 +48,12 @@ Cadence is consist of:
 
 ### Responsibilities
 
-| System                  | Owns                                                                       |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `UTableSubsystem`       | Data only — Board zones, Hand, Pool, Graveyard, Globals, delegates         |
-| `UEventSubsystem`       | Event Cadence management — activate, trigger, resolve, chain               |
-| `UStorySubsystem`       | Story Cadence management — placement, commit, tick, resolve, expire        |
-| `UTurnManagerSubsystem` | Phase pipeline (`UCadenceClock`) — orchestrates all subsystems in order, drains action queue |
+| System                  | Owns                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `UTableSubsystem`       | Data only — Board zones, Hand, Pool, Graveyard, Globals, delegates                               |
+| `UEventSubsystem`       | Event Cadence management — activate, trigger, resolve, chain                                     |
+| `UStorySubsystem`       | Story Cadence management — placement, commit, tick, resolve, expire                              |
+| `UTurnManagerSubsystem` | Phase pipeline (`UCadenceConductor`) — orchestrates all subsystems in order, drains action queue |
 
 ---
 
@@ -228,9 +228,9 @@ public:
 ```
 Edwin
   Tags: 
-  Character.Main, Character.Gender.Male, Character.Commoner
+  Character.Main, Character.Gender.Male, Character.Human.Commoner
   Stats: 
-  Card.Rarity: 2, Stat.Diplomacy:5, Stat.Prowess:3, Stat.Poise:5, Stat.Management:2, Stat.Piety:3, Mechanic.Reroll: 2
+  Card.Rarity: 2, Stat.Sociability:5, Stat.Prowess:3, Stat.Poise:5, Stat.scholarship:2, Stat.Subterfuge:3, Mechanic.Reroll: 2
   Equipment slots: Slot.Weapon, Slot.Accessory, Slot.Accessory, Slot.Attire, Slot.Animal
 
 Inside Information
@@ -245,7 +245,7 @@ Diamond Necklace
   Equipment slots: Slot.Adornment
 
 Hyacinth Flower
-  Tags: Type.Equipment, Slot.Adornment, Trait.FreshFlower, 
+  Tags: Type.Equipment.Adornment, Trait.FreshFlower, 
   Stats:
   Mechanic.Reroll:1, Card.Rarity: 1, Expire: 2 (destroyed after 2 turns)
 
@@ -1079,12 +1079,13 @@ Player calls ConfirmCurrentCheck():
 {
   "check_id": "r1",
   "stat_sources": [
-    { "stat_tag": "Stat.Sociability", "limit_to_slots": [] },
-    { "stat_tag": "Stat.Subterfuge", "limit_to_slots": [] }
-  ],
-  "check_type": "DiceRoll",
+    { "Stat.Sociability": ["s1"] },
+    { "Stat.Subterfuge": [] }
+  ], //by default, stat check source stat bonus from all cards placed in a story, unless s slot id like s1 is specified in the array
+  "check_type": "Roll",
   "aggregate": "Max",
-  "dice_modifiers": [],
+  "dice_mod": [
+  ], // any bonus dice to roll based on circunstances
   "results": [
     {
       "result_id": "chase_success",
@@ -1092,8 +1093,8 @@ Player calls ConfirmCurrentCheck():
       "result_title": "A Familiar Shape",
       "result_text": "You chase after the man, shadow flickers on the alley wall in the weak lamp light, almost losing the sense of direction. Fortunately, you see a familiar shape afar — the white dome of Count Cornelius' manor that you've seen on the night of banquet. You slow down, marking the way where the mysterious man have slipped away.",
       "actions": [
-        { "$type": "Action_ActivateEvent", "event_id": "event.HiddenDagger2" },
-        { "$type": "Action_ModifyGlobal", "key": "gv.MaskedManTraced", "delta": 1 }
+        { "$type": "EventOn", "id": "event.HiddenDagger2" },
+        { "$type": "GlobalAdd", "key": "gv.MaskedManTraced", "delta": 1 }
       ]
     },
     {
@@ -1102,8 +1103,8 @@ Player calls ConfirmCurrentCheck():
       "result_title": "Lost in the Dark",
       "result_text": "You chase after the man, as shadow flickers on the alley wall in the weak lamp light, you start to lose the sense of direction. Slowing down, you realized you have no idea where the mysterious man have slipped away.",
       "actions": [
-        { "$type": "Action_ActivateEvent", "event_id": "event.HiddenDaggerLost" },
-        { "$type": "Action_SetGlobal", "key": "gv.MaskedManTraced", "value": 0 }
+        { "$type": "EventOn", "id": "event.HiddenDaggerLost" },
+        { "$type": "SetGlobal", "key": "gv.MaskedManTraced", "value": 0 }
       ]
     }
   ]
@@ -1761,12 +1762,11 @@ JSON source files remain freely mergeable as text.
 {
   "id": "card.HyacinthFlower",
   "name": "Hyacinth Flower",
-  "text": ""
+  "text": "Beautiful purple flower. "
   "tags": ["Equipment.Adornment", "Trait.FreshFlower"  ],
   "stats": [
     { "Rarity": 1 },
     { "Mechanic.Reroll": 1 },
-    { "Stat.Poise": 1 },
     { "Mechanic.Expire": 2 }
   ],
   "equipment_slots": []
