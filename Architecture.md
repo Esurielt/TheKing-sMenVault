@@ -228,7 +228,7 @@ public:
 ```
 Edwin
   Tags: 
-  Character.Main, Character.Gender.Male, Character.Human.Commoner
+  Character.Main, Character.Male, Character.Commoner
   Stats: 
   Card.Rarity: 2, Stat.Sociability:5, Stat.Prowess:3, Stat.Poise:5, Stat.scholarship:2, Stat.Subterfuge:3, Mechanic.Reroll: 2
   Equipment slots: Slot.Weapon, Slot.Accessory, Slot.Accessory, Slot.Attire, Slot.Animal
@@ -245,16 +245,16 @@ Diamond Necklace
   Equipment slots: Slot.Adornment
 
 Hyacinth Flower
-  Tags: Type.Equipment.Adornment, Trait.FreshFlower, 
+  Tags: Equipment.Adornment, Trait.FreshFlower, 
   Stats:
   Mechanic.Reroll:1, Card.Rarity: 1, Expire: 2 (destroyed after 2 turns)
 
 Gold Coin
-  Tags: Type.Resource.Gold
+  Tags: Asset.Gold
   Card.Rarity: 3
 
 Cracked Diamond
-  Tags: Type.Resource.Gem, Slot.Adornment
+  Tags: Asset.Gem, Equipment.Adornment, Trait.Broken
   Stats:
   Card.Rarity: 4
 ```
@@ -1079,13 +1079,21 @@ Player calls ConfirmCurrentCheck():
 {
   "check_id": "r1",
   "stat_sources": [
-    { "Stat.Sociability": ["s1"] },
+    { "Stat.Sociability": [1] },
     { "Stat.Subterfuge": [] }
   ], //by default, stat check source stat bonus from all cards placed in a story, unless s slot id like s1 is specified in the array
-  "check_type": "Roll",
-  "aggregate": "Max",
-  "dice_mod": [
-  ], // any bonus dice to roll based on circunstances
+  "check_type": {
+        "$type":"Roll", // "Roll" or "Static". Static checks has no aggregate and dice mod.
+        "aggregate": "Max", // take the max result out of all the dice(s) rolled.
+        "dice_modifiers": [ // any bonus dice to roll based on circunstances
+            { "$type": "StatMet", // this function checks if the total stats of the following cards meet a requirement. 
+            "slot_id": [], // no id specified means all cards. 
+            "stat": "Stat.Poise" ,
+            "bonus_dice": 1,
+            "hint": "", // empty means no hint is displayed on the story intro.  
+            "result_title": "",
+            "result_text": "You hold your liqour incredibly well at the party. " }]
+    },
   "results": [
     {
       "result_id": "chase_success",
@@ -1117,64 +1125,100 @@ Player calls ConfirmCurrentCheck():
 
 ```json
 {
-  "id": "story.private_audience",
-  "type": "StoryDefinition",
-  "name": "Private Audience with the King",
-  "must_resolve_by_turn": 3,
-  "turns_to_resolve": 2,
-  "persistent": false,
-  "return_cards_on_end": true,
-  "return_cards_on_expire": true,
-  "slots": [
-    { "slot_id": "main_character", "type": "Required",
-      "required_tags": ["Type.Character.Main"],
-      "allow_stack": false },
-    { "slot_id": "companion", "type": "Optional",
-      "required_tags": ["Type.Character"],
-      "allow_stack": false },
-    { "slot_id": "gift", "type": "Required",
-      "required_tags": ["Resource.Gold"],
-      "allow_stack": true, "min_stack_size": 10, "max_stack_size": 0 },
-    { "slot_id": "intel", "type": "Required",
-      "required_card": "card.annual_report",
-      "allow_stack": false },
-    { "slot_id": "consumable", "type": "Optional",
-      "required_tags": ["Type.Consumable"],
-      "allow_stack": false }
+  "id": "story.private_audience", // id of the story, "story." prefix shows the type of the definition. 
+  "name": "Private Audience with the King", // Name of the story shown on the map. 
+  "deadline": 3, // turns before it expires, 0 for no deadline.
+  "duration": 2, // turns it takes to resolve, 0 for instant resolution.
+  "persistent": false, // if true, the story will stay on the map after resolution and can be resolved multiple times until it expires.
+  "expire": { // actions on expire, can be left empty or omitted if no action is needed.
+    "actions": [
+      { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": -20 },
+      { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": -10 },
+      { "$type": "BoxOption", "text": "You missed your chance to meet with the King. The court is abuzz with gossip about your absence...", 
+        "option":[
+            {"text":"Write a apology letter to the King", 
+            "actions":[{ "$type": "EventOn", "key": "event.audience_missed" }
+            ]},
+            {"text":"Request Another Audience", 
+            "actions":[
+                { "$type": "EventOn", "key": "event.audience_secondchance" }
+            ]}]
+       }
+
+    ]
+  },
+  "slots": [ // Slots define the required or optional cards that must be played to attempt the story.
+    // required fields: slot_id, label, text, type (Required or Optional, default Required)
+    // the condition evaluation here uses the "CardInSlot" condition logic, meaning it can specify required_tags, required_stats, any_tags, stack, etc as needed. The card is valid when all the conditions listed evaluate true.  
+    { "slot_id": 1, // unique number id
+      "label": "Main Character", // this is mostly a designer display label, it doesn't affect the logic. No need to set. 
+      "text": "You have to be there.", // flavor text shown to the player when hovered. 
+      "type": "Required", // "Required" or "Optional"
+      "required_tags": ["Character.Main"]}, // the card must have all the tags in this list to be played in the slot. 
+    { "slot_id": 2, "label": "Companion", "text": "A noble companion might be helpful.", "type": "Optional",
+      "required_tags": ["Character.Companion", "Character.Noble"]},
+    { "slot_id": 3, "label": "Gift", "text": "A gift is expected, must not be too shabby.", "type": "Required",
+      "required_stats":[{"tag":"Rarity","operator": ">=", "value":3}], // optional field: required stats condition on the card. 
+      "any_tags": ["Asset", "Item", "Equipment"], // optional field: the card must have at least one of the tags in this list to be played in the slot.
+      "stack": true, "min_stack": 10, "max_stack": 0 }, // optional field: cards in this slot can be stacked, and must have a stack count between min_stack and max_stack (0 means no max).  
+    { "slot_id": 4, "label": "Annual Report", "text": "An annual report is required.", "type": "Required",
+      "required_card": "card.annual_report"}, // optional field: require specific card by id. 
+    { "slot_id": 5, "label": "Consumable", "text": "", "type": "Optional",
+      "required_tags": ["Consumable"],
+      "stack": true, "min_stack": 1, "max_stack": 5 }
   ],
-  "stat_checks": [
+  "stat_checks": [ // result are associated with each stat check. If you leave 
     {
-      "check_id": "audience_diplomacy",
-      "stat_sources": [{ "stat_tag": "Stat.Diplomacy", "limit_to_slots": [] }],
-      "check_type": "DiceRoll",
-      "aggregate": "Max",
-      "dice_modifiers": [
-        { "$type": "RollMod_CardInSlot", "slot_id": "companion",
-          "required_tags": ["Type.Character"], "bonus_dice": 1,
-          "display_label": "Companion present" },
-        { "$type": "RollMod_GlobalVariable", "key": "gv.RoyalFavor",
-          "operator": ">=", "value": 50, "bonus_dice": 1,
-          "display_label": "High royal favor" }
-      ],
-      "results": [
-        {
-          "result_id": "critical_success",
+      "check_id": "audience_diplomacy", // unique id for this check, could be any string, no space allowed.
+      "stat_sources": [{ "Stat.Diplomacy":[]}], //by default, stat check source stat bonus from all cards placed in a story, unless s slot id is specified in the array
+      "check_type": {
+        "$type":"Roll", // "Roll" or "Static". Static checks has no aggregate and dice mod.
+        "aggregate": "Max", // take the max result out of all the dice(s) rolled.
+        "dice_modifiers": [ // any bonus dice to roll based on circunstances
+            { "condition":[{"$type": "CardInSlot", "slot_id": 2, "required_tags": ["Character.Council"]}],
+             "bonus_dice": 1,
+            "hint": "Another Council member might be good company.",
+            "result_title": "Council Support",
+            "result_text": "Your companion's presence reassures the King, giving you an edge in your audience." },
+            { "$type": "GlobalCheck", "key": "gv.RoyalFavor",
+              "operator": ">=", "value": 50, "bonus_dice": 1,
+              "display_label": "Royal court's trust aids your goals. " ,
+              "result_title": "Royal Favor",
+              "result_text": "The King trusts you, your friendship is still ever dear to him." }
+        ]
+        }
+    }],
+  "resolution_prior":[ // prioritized results, if any result excuted here, results will be skipped, similar to resolution, only 1 result from the same result id will be executed. This is useful for critical failure/success or any result that might interrupt the story resolution and cause a branch.
+    {"result_id":"pre_result",
+      "conditions": [{ "$type": "CardInSlot", "slot_id": 3, "required_tags": ["special.KingShame"] }],
+      "result_title":"A Bitter Reminder",
+      "result_text": "The King notices your gift and his eyes grew cold. He takes the report from you and dismiss you without a word. Is your mockery effective in forcing his move?",
+      "actions": [
+        { "$type": "GlobalTag", "key": "gv.event.audience_blackmailed" }, // push a tag to global variable container, but without setting a proper value set, value checks will return -1. 
+        { "$type": "GlobalSet", "key": "gv.event.audience_attended", "value": 1 }, // this tag will be in the global variable container, but also has a value associated with it. 
+        {"$type": "Speech", "target": "Card.Character.Main", "text":"He will surely take the hint." },
+        {"$type": "Speech", "target": "Card.Character.Main", "text":"Let's hope Cezar's plan works." }
+      ]}
+  ], // evaluations right after commit (regardless of the duration), before the story is fully resolved. Only a static check are recommended here.   
+  "resolution": [
+    {"result_id":"r1", // only one result from the same result id will be executed, but results from different id will be evaluated seperately. 
+        "results":[
+        { // Note: Results are evaluated in order, so more specific conditions should come first. 
           "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 20 }],
           "result_title": "Royal Favor",
           "result_text": "The King is deeply impressed by your counsel and generosity...",
           "actions": [
-            { "$type": "Action_ModifyGlobal", "key": "gv.RoyalFavor", "delta": 30 },
-            { "$type": "Action_ModifyGlobal", "key": "gv.KingdomStability", "delta": 10 }
+            { "$type": "Stat", "key": "gv.RoyalFavor", "value": 30 },
+            { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": 10 }
           ]
         },
-        {
-          "result_id": "success",
+        { 
           "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 15 }],
           "result_title": "A Productive Meeting",
           "result_text": "The King listens attentively and nods along...",
           "actions": [
-            { "$type": "Action_ModifyGlobal", "key": "gv.RoyalFavor", "delta": 20 },
-            { "$type": "Action_ModifyGlobal", "key": "gv.KingdomStability", "delta": 5 }
+            { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": 20 },
+            { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": 5 }
           ]
         },
         {
@@ -1183,7 +1227,7 @@ Player calls ConfirmCurrentCheck():
           "result_title": "Polite but Distant",
           "result_text": "The King acknowledges your words but seems distracted...",
           "actions": [
-            { "$type": "Action_ModifyGlobal", "key": "gv.RoyalFavor", "delta": 10 }
+            { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": 10 }
           ]
         },
         {
@@ -1199,14 +1243,21 @@ Player calls ConfirmCurrentCheck():
           "result_title": "The King's Displeasure",
           "result_text": "Your words fall flat. The King's expression darkens...",
           "actions": [
-            { "$type": "Action_ActivateEvent", "event_id": "event.king_displeasure" }
+            { "$type": "EventOn", "event_id": "event.king_displeasure" }
           ]
         }
-      ]
-    }
-  ],
+    ]},
+    {"result_id":"narration2", "results":[
+        {
+          "conditions": [], // narrative results can be set to have no condition, therefore it will always be executed. 
+          "result_title": "",
+          "result_text": "Regardless of the outcome, you have made your move in the court, and the consequences will unfold in the days to come.",
+          "actions": [
+            { "$type": "GlobalSet", "key": "gv.event.audience_attended", "value": 1 } // this tag will be in the global variable container, but also has a value associated with it. 
+    ]}]}
+],
   "on_expire": [
-    { "$type": "Action_ModifyGlobal", "key": "gv.KingdomStability", "delta": -5 }
+    { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": -5 }
   ]
 }
 ```
