@@ -24,15 +24,27 @@ The gameplay architecture is organized around six systems:
 
 This data-oriented approach separates logic and data, allows for clean and modular authoring; it serializes only instance state, reference definitions by their stable `DefinitionID` string. New card types, event chains, Story behaviours, roll modifiers, and stat checks are authored in JSON and imported as DataAssets. No C++ changes are required to add new content.
 
+
 **Event-driven Game States**: To further decouple the system and keep the responsibility clean, UI widgets bind to delegates on `UTableSubsystem` and `UTurnManagerSubsystem`. The UI and player controller never poll or write game state.
 
-**Polymorphism**: The implementation also take advantage of polymorphic instanced object in data assets. `URollModifier`, `UEventCondition`, and `UEventAction` all use the same `Abstract` + `EditInlineNew` + `Instanced` UObject pattern. This means that designers can define new variants of Rolls, Conditions, and Action in Blueprint without new C++ changes, following one known path throughout the codebase.
+
+**Polymorphism**: The implementation also take advantage of polymorphic instanced object in Data Assets for a modular blueprint experience. 
+
+`URollModifier`, `UEventCondition`, and `UEventAction` all use the same `Abstract` + `EditInlineNew` + `Instanced` UObject pattern. This means that designers can define new variants of Rolls, Conditions, and Action in Blueprint without new C++ changes, following one known path throughout the codebase.
+
 
 **Tag over Names**: Where possible, identifiers and tag keys use Unreal's `FGameplayTag` / `FGameplayTagContainer` system. This provides hierarchical tag queries (e.g. `Stat.Diplomacy`, `Type.Character.Main`), native editor validation, and future compatibility with the Gameplay Ability System. `FName` is still used for string identifiers that are not tag-based (e.g. `DefinitionID`, `SlotID`, `InstanceID`).
 
-### Cadence — a 
-Cadence System is authored as a modular and generic code module centered around an abstract `UGameInstanceSubsystem` that hosts a collection of stateful objects, ticks them through a designer-configurable phase pipeline. 
-It can filter
+### Cadence 
+Cadence System is the data-driven turn manager for any game object that update through phases. It is the concept at the heart of the Events, Story, and Turn Manager System. 
+
+Cadence is consist of:
+
+`ICadence` -  Interface for stateful phase-driven objects.
+
+`UCadenceSystem` - abstruct base class for subsystems hosting a collection of `ICadence` objects and their gameplay logic
+
+`UCadenceConductor` - concrete `UGameInstanceSubsystem` that control turn and phase flow, ticks all registered UCadenceSystem in order. 
 
 ### Responsibilities
 
@@ -41,7 +53,7 @@ It can filter
 | `UTableSubsystem`       | Data only — Board zones, Hand, Pool, Graveyard, Globals, delegates         |
 | `UEventSubsystem`       | Event Cadence management — activate, trigger, resolve, chain               |
 | `UStorySubsystem`       | Story Cadence management — placement, commit, tick, resolve, expire        |
-| `UTurnManagerSubsystem` | Phase pipeline — orchestrates all subsystems in order, drains action queue |
+| `UTurnManagerSubsystem` | Phase pipeline (`UCadenceClock`) — orchestrates all subsystems in order, drains action queue |
 
 ---
 
@@ -50,6 +62,7 @@ It can filter
 ```
 Source/
 	Cadence/
+	    CadenceConductor.h/.cpp  # Concrete turn manager
 	    CadenceSystem.h/.cpp  # Reusable abstract base
 	    Cadence.h                     # ICadence interface
 	KingsMen/
@@ -83,7 +96,7 @@ Source/
 	
 		Table/
 		    TableSubsystem.h/.cpp           # UGameInstanceSubsystem — pure data layer
-		    TurnManagerSubsystem.h/.cpp     # UGameInstanceSubsystem — phase pipeline
+		    TurnManagerSubsystem.h/.cpp     # UCadenceConductor — phase pipeline
 		    EventSubsystem.h/.cpp           # UCadenceSystem subclass
 		    StorySubsystem.h/.cpp           # UCadenceSystem subclass
 		    DefinitionRegistry.h/.cpp       # UGameInstanceSubsystem — all definitions
@@ -1726,7 +1739,6 @@ JSON source files remain freely mergeable as text.
 
 ```json
 // card_edwin.json
-// Definition type is specified through ID prefix. 
 {
   "id": "card.edwin",
   "name": "Edwin",
@@ -1763,6 +1775,7 @@ JSON source files remain freely mergeable as text.
 // event_succession_crisis.json
 {
   "id": "event.succession_crisis",
+  "type": "EventDefinition",
   "repeatable": false,
   "trigger_phase": "StartOfTurn",
   "conditions": [
