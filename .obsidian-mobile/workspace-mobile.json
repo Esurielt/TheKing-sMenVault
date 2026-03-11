@@ -185,7 +185,7 @@
         }
       }
     ],
-    "currentTab": 2
+    "currentTab": 3
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -197,7 +197,8 @@
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
       "obsidian-wordy:Wordy view": false,
-      "obsidian-5e-statblocks:Open Creature Pane": false
+      "obsidian-5e-statblocks:Open Creature Pane": false,
+      "obsidian-git:Open Git source control": false
     }
   },
   "active": "78eec55e6cb5390a",

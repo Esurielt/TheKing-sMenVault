@@ -77,7 +77,7 @@ Cadence consists of:
 
 -----
 
-## 2. Directory Structure
+## Directory Structure
 
 ```
 Source/
@@ -149,7 +149,7 @@ Mods/                                    # Runtime mod directory — JSON only, 
 
 -----
 
-## 3. Card System
+## Card System
 
 Cards are the core representation of player's resources. Their mechanics and attributes are represented through two complementary structures — a `FGameplayTagContainer` for categorical presence queries and a `TMap<FGameplayTag, int32>` for numeric stats — plus equipment (attached cards).
 
@@ -284,7 +284,7 @@ Cracked Diamond
 
 -----
 
-## 4. Cadence System
+## Cadence System
 
 Events and Stories share the same structural skeleton: a collection of stateful objects with discrete states, a per-phase tick that advances state, and actions that fire on transitions. This is extracted into a reusable **Cadence** pattern that both `UEventSubsystem` and `UStorySubsystem` extend.
 
@@ -417,7 +417,7 @@ protected:
 
 -----
 
-## 5. Event System (Cadence)
+## Event System (Cadence)
 
 Events are the **invisible engine** of the board. They never accept direct player input. Their role is to activate Stories, create cards, modify globals, and chain into further events — driving the game's narrative state machine in the background.
 
@@ -614,7 +614,7 @@ protected:
 
 -----
 
-## 6. Story System (Cadence)
+## Story System (Cadence)
 
 Stories are the **player-facing affairs** on the Board. They accept card placements, hold slot requirements, count down over turns, and produce outcomes through stat checks.
 
@@ -856,7 +856,7 @@ protected:
 
 -----
 
-## 7. Stat Check System
+## Stat Check System
 
 Stat checks evaluate the outcomes of a Story. Each check is **self-contained**: it defines its own stat sources, dice behavior, and an ordered array of **result branches**, each with a condition, narrative text, and actions. There is no Story-level success/failure — all logic lives in the checks.
 
@@ -1382,7 +1382,7 @@ Player calls ConfirmCurrentCheck():
 
 -----
 
-## 8. Table Subsystem
+## Table Subsystem
 
 `UTableSubsystem` is the **pure data layer** — it owns all game state collections and exposes delegates for the UI. It contains no logic; all logic lives in `UEventSubsystem` and `UStorySubsystem`.
 
@@ -1443,7 +1443,7 @@ public:
 
 -----
 
-## 9. Turn Manager Subsystem
+## Turn Manager Subsystem
 
 `UTurnManagerSubsystem` extends `UCadenceConductor` to add game-specific phase hooks — undo snapshot capture, card lifespan ticking, and any future project-specific behavior. It is the only place phase transitions occur.
 
@@ -1567,7 +1567,7 @@ Cleanup
 
 -----
 
-## 10. Undo System
+## Undo System
 
 The Undo system captures full board snapshots at the start of each turn, allowing the player to revert to the state at the end of the previous turn (before any current-turn mutations). Up to 5 snapshots are stored.
 
@@ -1613,7 +1613,7 @@ private:
 
 -----
 
-## 11. UI Architecture
+## UI Architecture
 
 Widgets are **purely presentational.** They hold read-only references to runtime instances and receive updates through delegates. They never directly modify game state — player card/story actions route through `UStorySubsystem`, and phase advancement routes through `UCadenceConductor`.
 
@@ -1670,7 +1670,7 @@ UAdvancePhaseButton
 
 -----
 
-## 12. JSON Serialization & Modding Pipeline
+## JSON Serialization & Modding Pipeline
 
 ### 12a. Philosophy: JSON is the Authority
 
@@ -1940,7 +1940,9 @@ Full Story JSON example is in Section 7k.
 
 -----
 
-## 13. Data Flow Summary
+## Data Flow Summary
+
+
 
 ```
 JSON source file  →  [Import / PostSave export]  →  UDataAsset
@@ -1998,7 +2000,7 @@ JSON source file  →  [Import / PostSave export]  →  UDataAsset
 
 -----
 
-## 14. Implementation Order
+## Implementation Order
 
 |Phase|Milestone           |Systems                                                                                                                                                               |
 |-----|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
