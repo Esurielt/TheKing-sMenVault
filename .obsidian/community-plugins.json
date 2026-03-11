@@ -10,7 +10,6 @@
   "obsidian-linter",
   "multi-properties",
   "emoji-magic",
-  "obsidian-git",
   "obsidian-wordy",
   "oz-image-plugin",
   "emo-uploader",
@@ -32,5 +31,6 @@
   "header-enhancer",
   "markdown-table-editor",
   "automatic-table-of-contents",
-  "dynamic-outline"
+  "dynamic-outline",
+  "obsidian-git"
 ]

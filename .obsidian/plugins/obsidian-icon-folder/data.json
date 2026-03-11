@@ -37,7 +37,9 @@
     "iconInTitlePosition": "above",
     "iconInFrontmatterFieldName": "icon",
     "iconColorInFrontmatterFieldName": "iconColor",
-    "debugMode": false
+    "debugMode": false,
+    "lucideIconPackType": "native",
+    "useInternalPlugins": false
   },
   "z_DM Screen/0. Landing Page.md": "RaBook",
   "z_DM Screen": "RaScrollUnfurled"

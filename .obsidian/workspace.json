@@ -173,17 +173,16 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Architecture.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Architecture"
+              "title": "Outline"
             }
           },
           {
-            "id": "fc124b2f0f92af1d",
+            "id": "8cfe22046d48fac3",
             "type": "leaf",
             "state": {
               "type": "git-view",
@@ -193,7 +192,7 @@
             }
           }
         ],
-        "currentTab": 4
+        "currentTab": 5
       }
     ],
     "direction": "horizontal",
@@ -211,23 +210,23 @@
       "obsidian-leaflet-plugin:Open Leaflet Map": false,
       "obsidian-kanban:Create new board": false,
       "obsidian42-brat:BRAT": false,
-      "digitalgarden:Digital Garden Publication Center": false,
       "obsidian-wordy:Wordy view": false,
       "table-editor-obsidian:Advanced Tables Toolbar": false,
       "obisidian-note-linker:Note Linker": false,
       "header-enhancer:Header Enhancer": false,
-      "markdown-table-editor:Open Markdown Table Editor": false
+      "markdown-table-editor:Open Markdown Table Editor": false,
+      "obsidian-git:Open Git source control": false
     }
   },
-  "active": "36b0a5fa068b1024",
+  "active": "7930e878187f51a5",
   "lastOpenFiles": [
+    "Architecture.md",
     "Sultan's Game Docs/音效sfx表怎么使用(sfx).pdf",
     "Sultan's Game Docs/触发时机.pdf",
     "Sultan's Game Docs/游戏本体使用过的计数器.xlsx",
     "Sultan's Game Docs/条件.pdf",
     "Sultan's Game Docs",
     "README.md",
-    "Architecture.md",
     "LICENSE.md",
     "TheKing'sMen/LICENSE.md",
     "TheKing'sMen/README.md",
