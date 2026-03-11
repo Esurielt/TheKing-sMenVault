@@ -1,10 +1,33 @@
+# The King’s Men —  Architecture 
 
+**Engine:** Unreal Engine 5  
+**Genre:** Card-Based Time Management Strategy    
+**Scope:** Single-player 
 
----
+-----
+
+## Table of Contents
+
+1. [Systems Overview](#1-systems-overview)
+2. [Directory Structure](#2-directory-structure)
+3. [Card System](#3-card-system)
+4. [Cadence System](#4-cadence-system)
+5. [Event System](#5-event-system-cadence)
+6. [Story System](#6-story-system-cadence)
+7. [Stat Check System](#7-stat-check-system)
+8. [Table Subsystem](#8-table-subsystem)
+9. [Turn Manager Subsystem](#9-turn-manager-subsystem)
+10. [Undo System](#10-undo-system)
+11. [UI Architecture](#11-ui-architecture)
+12. [JSON Serialization & Modding Pipeline](#12-json-serialization--modding-pipeline)
+13. [Data Flow Summary](#13-data-flow-summary)
+14. [Implementation Order](#14-implementation-order)
+
+-----
 
 ## 1. Systems Overview
 
-The King's Men is a card-based time management strategy game. Players manage a falling kingdom by placing cards representing characters, resources, and abstract concepts into Stories — interactive affairs that resolve over time and produce narrative consequences.
+The King’s Men is a card-based time management strategy game. Players manage a falling kingdom by placing cards representing characters, resources, and abstract concepts into Stories — interactive affairs that resolve over time and produce narrative consequences.
 
 The gameplay architecture is organized around six systems:
 
@@ -22,123 +45,118 @@ The gameplay architecture is organized around six systems:
 - `UXxxDefinition` — immutable `UDataAsset`, the template to create runtime instances, with a unique `DefinitionID` (`FName` generated from `FGuid`) for unambiguous identification in save/load, logging, and cross-system lookups.
 - `UXxxInstance` — mutable `UObject`, created from a definition at runtime with a unique `InstanceID` as well.
 
-This data-oriented approach separates logic and data, allows for clean and modular authoring; it serializes only instance state, reference definitions by their stable `DefinitionID` string. New card types, event chains, Story behaviours, roll modifiers, and stat checks are authored in JSON and imported as DataAssets. No C++ changes are required to add new content.
+This data-oriented approach separates logic and data, allows for clean and modular authoring; it serializes only instance state, reference definitions by their stable `DefinitionID` string. New card types, event chains, Story behaviours, roll modifiers, and stat checks can be authored in JSON and imported as DataAssets. No C++ changes are required to add new content.
 
+**Event-driven Game States.** To further decouple the system and keep the responsibility clean, UI widgets bind to delegates on `UTableSubsystem` and subsystems. The UI and player controller never poll or write game state — all player actions route through `UStorySubsystem` (for card placement and story interaction) or `UTurnManagerSubsystem` (for phase advancement).
 
-**Event-driven Game States**: To further decouple the system and keep the responsibility clean, UI widgets bind to delegates on `UTableSubsystem` and `UTurnManagerSubsystem`. The UI and player controller never poll or write game state.
+**Polymorphism.** The implementation also takes advantage of polymorphic instanced objects in Data Assets for a modular blueprint experience.
 
+`URollModifier`, `UEventCondition`, and `UEventAction` all use the same `Abstract` + `EditInlineNew` + `Instanced` UObject pattern. This means that designers can define new variants of Rolls, Conditions, and Actions in Blueprint without new C++ changes, following one known path throughout the codebase.
 
-**Polymorphism**: The implementation also take advantage of polymorphic instanced object in Data Assets for a modular blueprint experience. 
+**Tag over Names.** Where possible, identifiers and tag keys use Unreal’s `FGameplayTag` / `FGameplayTagContainer` system. This provides hierarchical tag queries (e.g. `Stat.Diplomacy`, `Type.Character.Main`), native editor validation, and future compatibility with the Gameplay Ability System. `FName` is still used for string identifiers that are not tag-based (e.g. `DefinitionID`, `SlotID`, `InstanceID`).
 
-`URollModifier`, `UEventCondition`, and `UEventAction` all use the same `Abstract` + `EditInlineNew` + `Instanced` UObject pattern. This means that designers can define new variants of Rolls, Conditions, and Action in Blueprint without new C++ changes, following one known path throughout the codebase.
+**Tags vs. Stats split.** Card properties are divided into two structures: `FGameplayTagContainer` for categorical/presence queries (“is this a character?”, “does this have any Equipment.* tag?”) and `TMap<FGameplayTag, int32>` for numeric values that get summed, compared, and aggregated (“what is this card’s Stat.Diplomacy?”). This avoids polluting the tag container with fake boolean values and gives each query type its optimal data structure.
 
+### Cadence
 
-**Tag over Names**: Where possible, identifiers and tag keys use Unreal's `FGameplayTag` / `FGameplayTagContainer` system. This provides hierarchical tag queries (e.g. `Stat.Diplomacy`, `Type.Character.Main`), native editor validation, and future compatibility with the Gameplay Ability System. `FName` is still used for string identifiers that are not tag-based (e.g. `DefinitionID`, `SlotID`, `InstanceID`).
+Cadence System is the data-driven turn manager for any game object that updates through phases. It is the concept at the heart of the Events, Story, and Turn Manager systems. Cadence has zero project-specific dependencies — it is a standalone module publishable on FAB.
 
-### Cadence 
-Cadence System is the data-driven turn manager for any game object that update through phases. It is the concept at the heart of the Events, Story, and Turn Manager System. 
+Cadence consists of:
 
-Cadence is consist of:
-
-`ICadence` -  Interface for stateful phase-driven objects.
-
-`UCadenceSystem` - abstruct base class for subsystems hosting a collection of `ICadence` objects and their gameplay logic
-
-`UCadenceConductor` - concrete `UGameInstanceSubsystem` that control turn and phase flow, ticks all registered UCadenceSystem in order. 
+- `ICadence` — Interface for stateful phase-driven objects. Does not depend on any project-specific types.
+- `UCadenceSystem` — Abstract base class for subsystems hosting a collection of `ICadence` objects and their gameplay logic.
+- `UCadenceConductor` — Abstract `UGameInstanceSubsystem` that controls turn and phase flow, ticks all registered `UCadenceSystem` instances in order. Project-specific conductors (e.g. `UTurnManagerSubsystem`) extend this to add game-specific phase hooks.
 
 ### Responsibilities
 
-| System                  | Owns                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `UTableSubsystem`       | Data only — Board zones, Hand, Pool, Graveyard, Globals, delegates                               |
-| `UEventSubsystem`       | Event Cadence management — activate, trigger, resolve, chain                                     |
-| `UStorySubsystem`       | Story Cadence management — placement, commit, tick, resolve, expire                              |
-| `UTurnManagerSubsystem` | Phase pipeline (`UCadenceConductor`) — orchestrates all subsystems in order, drains action queue |
+|System                 |Owns                                                                                                 |
+|-----------------------|-----------------------------------------------------------------------------------------------------|
+|`UTableSubsystem`      |Data only — Board zones, Hand, Pool, Graveyard, Globals, delegates                                   |
+|`UEventSubsystem`      |Event Cadence management — activate, trigger, resolve, chain; owns ActionQueue                       |
+|`UStorySubsystem`      |Story Cadence management — placement, commit, tick, resolve, expire; handles player input            |
+|`UTurnManagerSubsystem`|Phase pipeline (extends `UCadenceConductor`) — orchestrates all subsystems, game-specific phase hooks|
 
----
+-----
 
 ## 2. Directory Structure
 
 ```
 Source/
-	Cadence/
-	    CadenceConductor.h/.cpp  # Concrete turn manager
-	    CadenceSystem.h/.cpp  # Reusable abstract base
-	    Cadence.h                     # ICadence interface
-	KingsMen/
-	    Cards/
-	      CardDefinition.h/.cpp           # UDataAsset — card template
-	      CardInstance.h/.cpp             # UObject — live card state
-	      CardTag.h                       # FCardTag struct (FGameplayTag + int32)
-	    Events/
-	      EventDefinition.h/.cpp          # UDataAsset — event template
-	      EventInstance.h/.cpp            # UObject — live event state
-	      EventCondition.h/.cpp           # Abstract base for trigger conditions
-	      EventAction.h/.cpp              # Abstract base for actions
-	    Stories/
-	      StoryDefinition.h/.cpp          # UDataAsset — Story template
-	      StoryInstance.h/.cpp            # UObject — live Story state
-	      StorySlotDefinition.h           # FStorySlotDefinition struct (immutable)
-	      StorySlotState.h                # FStorySlotState struct (runtime)
-	    StatChecks/
-	      StatCheck.h/.cpp                # UStatCheck — one check definition (concrete)
-	      StatCheckResult.h/.cpp          # UStatCheckResult — per-check result branch
-	      StatCheckSession.h/.cpp         # Runtime session — owns roll state + reroll pool
-	      StatCheckOutcome.h              # FStatCheckOutcome struct
-	      RollModifier.h/.cpp             # Abstract base URollModifier
-	      PendingRollData.h               # FPendingRollData struct (delegate payload)
-	      RollModifiers/
-	        RollMod_CardInSlot.h/.cpp
-	        RollMod_PriorCheckTier.h/.cpp
-	        RollMod_GlobalVariable.h/.cpp
-	        RollMod_CardHasTag.h/.cpp
-	        RollMod_TagValue.h/.cpp
-	
-		Table/
-		    TableSubsystem.h/.cpp           # UGameInstanceSubsystem — pure data layer
-		    TurnManagerSubsystem.h/.cpp     # UCadenceConductor — phase pipeline
-		    EventSubsystem.h/.cpp           # UCadenceSystem subclass
-		    StorySubsystem.h/.cpp           # UCadenceSystem subclass
-		    DefinitionRegistry.h/.cpp       # UGameInstanceSubsystem — all definitions
-	    Undo/
-			UndoSnapshot.h/.cpp             # FUndoSnapshot — serialized board state
-		    UndoSubsystem.h/.cpp            # UGameInstanceSubsystem — manages undo stack
-	    Serialization/
-		    DefinitionBase.h/.cpp           # Shared ToJson/FromJson + source tracking
-		    DefinitionTypeRegistry.h/.cpp   # UEngineSubsystem — maps "$type" strings to UClass*
-		    ModLoaderSubsystem.h/.cpp       # Runtime JSON mod loading
-	    UI/
-		    BoardWidget.h/.cpp
-		    HandWidget.h/.cpp
-		    StoryWidget.h/.cpp
-		    CardWidget.h/.cpp
-		    StatCheckWidget.h/.cpp          # Dice display, result preview, reroll button
-	    Editor/
-		    DefinitionSyncChecker.h/.cpp    # UEditorSubsystem — drift detection on startup
-		    KingsDefinitionDetails.h     # Read-only detail panel with "Edit Source" button
+  Cadence/                               # Standalone module — no project dependencies
+    CadenceConductor.h/.cpp              # Abstract base turn/phase controller
+    CadenceSystem.h/.cpp                 # Abstract base for subsystems hosting ICadence objects
+    Cadence.h                            # ICadence interface
+  KingsMen/
+    Cards/
+      CardDefinition.h/.cpp              # UDataAsset — card template
+      CardInstance.h/.cpp                # UObject — live card state
+    Events/
+      EventDefinition.h/.cpp             # UDataAsset — event template
+      EventInstance.h/.cpp               # UObject — live event state
+      EventCondition.h/.cpp              # Abstract base for trigger conditions
+      EventAction.h/.cpp                 # Abstract base for actions
+    Stories/
+      StoryDefinition.h/.cpp             # UDataAsset — Story template
+      StoryInstance.h/.cpp               # UObject — live Story state
+      StorySlotDefinition.h              # FStorySlotDefinition struct (immutable)
+      StorySlotState.h                   # FStorySlotState struct (runtime)
+    StatChecks/
+      StatCheck.h/.cpp                   # UStatCheck — one check definition (concrete)
+      StatCheckResult.h/.cpp             # UStatCheckResult — per-check result branch
+      StatCheckSession.h/.cpp            # Runtime session — owns roll state + reroll pool
+      StatCheckOutcome.h                 # FStatCheckOutcome struct
+      RollModifier.h/.cpp                # Abstract base URollModifier
+      PendingRollData.h                  # FPendingRollData struct (delegate payload)
+      RollModifiers/
+        RollMod_CardInSlot.h/.cpp
+        RollMod_PriorCheckTier.h/.cpp
+        RollMod_GlobalVariable.h/.cpp
+        RollMod_CardHasTag.h/.cpp
+        RollMod_TagValue.h/.cpp
+    Table/
+      TableSubsystem.h/.cpp              # UGameInstanceSubsystem — pure data layer
+      TurnManagerSubsystem.h/.cpp        # UCadenceConductor subclass — game-specific phase hooks
+      EventSubsystem.h/.cpp              # UCadenceSystem subclass
+      StorySubsystem.h/.cpp              # UCadenceSystem subclass
+      DefinitionRegistry.h/.cpp          # UGameInstanceSubsystem — all definitions
+    Undo/
+      UndoSnapshot.h/.cpp                # FUndoSnapshot — serialized board state
+      UndoSubsystem.h/.cpp               # UGameInstanceSubsystem — manages undo stack
+    Serialization/
+      DefinitionBase.h/.cpp              # Shared ToJson/FromJson + source tracking
+      DefinitionTypeRegistry.h/.cpp      # UEngineSubsystem — maps "$type" strings to UClass*
+      ModLoaderSubsystem.h/.cpp          # Runtime JSON mod loading
+    UI/
+      BoardWidget.h/.cpp
+      HandWidget.h/.cpp
+      StoryWidget.h/.cpp
+      CardWidget.h/.cpp
+      StatCheckWidget.h/.cpp             # Dice display, result preview, reroll button
+    Editor/
+      DefinitionSyncChecker.h/.cpp       # UEditorSubsystem — drift detection on startup
+      KingsDefinitionDetails.h           # Read-only detail panel with "Edit Source" button
 
 Content/
-	DataAssets/                               # Generated DataAssets — build artifacts
-	    Cards/                            # DA_Edwin.uasset ...
-	    Stories/                          # DA_PrivateAudience.uasset ...
-	    Events/                           # DA_SuccessionCrisis.uasset ...
-Data/                             # JSON source files — THE authority
-  Cards/                            # card_edwin.json ...
-  Stories/                          # story_private_audience.json ...
-  Events/                           # event_succession_crisis.json ...
-Mods/                                 # Runtime mod directory — JSON only, no engine required
+  DataAssets/                            # Generated DataAssets — build artifacts
+    Cards/                               # DA_Edwin.uasset ...
+    Stories/                             # DA_PrivateAudience.uasset ...
+    Events/                              # DA_SuccessionCrisis.uasset ...
+Data/                                    # JSON source files — THE authority
+  Cards/                                 # card_edwin.json ...
+  Stories/                               # story_private_audience.json ...
+  Events/                                # event_succession_crisis.json ...
+Mods/                                    # Runtime mod directory — JSON only, no engine required
 ```
 
----
+-----
 
 ## 3. Card System
 
-Cards are the core representation of player's resources. Their mechanics and attributes are represented through tag-value pairs, and equipment. 
-Cards are created from immutable definition template, and managed at runtime through instances. Serialization will record both the template, and runtime changes in rarity level, tags, and equipments. 
+Cards are the core representation of player’s resources. Their mechanics and attributes are represented through two complementary structures — a `FGameplayTagContainer` for categorical presence queries and a `TMap<FGameplayTag, int32>` for numeric stats — plus equipment (attached cards).
 
+Cards are created from immutable definition templates, and managed at runtime through instances. Serialization will record both the template and runtime changes in stats, tags, and equipment.
 
-
----
+-----
 
 ### 3a. UCardDefinition (Data Asset)
 
@@ -148,30 +166,31 @@ class UCardDefinition : public UKingsDefinitionBase
 {
     GENERATED_BODY()
 public:
-	
-    UPROPERTY(EditAnywhere) FText                  CardName;
-    UPROPERTY(EditAnywhere) FText                  CardText;
-	// Categorical — hierarchical queries, slot validation 
-	UPROPERTY(EditAnywhere) FGameplayTagContainer Tags; 
-	
-	// Numeric — rarity level, stat values, other number mechanics, anything that gets summed
-	UPROPERTY(EditAnywhere) TMap<FGameplayTag, int32> Stats;
-	
-    // Equipment tags are seperated out for easier authoring, but are merged together in instance. 
-    UPROPERTY(EditAnywhere) FGameplayTagContainer   EquipmentSlots;    
+    UPROPERTY(EditAnywhere) FText CardName;
+    UPROPERTY(EditAnywhere) FText CardText;
 
-	// JSON Serailization
-    TSharedPtr<FJsonObject> ToJson() const override; // for json export 
-    bool FromJson(const TSharedPtr<FJsonObject>& JsonObject) override; // for json export
+    // Categorical — presence queries, hierarchical matching, slot validation.
+    // e.g. Character.Main, Type.Consumable, Trait.FreshFlower
+    UPROPERTY(EditAnywhere) FGameplayTagContainer Tags;
+
+    // Numeric — stat values, rarity, mechanic values, anything that gets summed or compared.
+    // e.g. Stat.Diplomacy: 5, Card.Rarity: 2, Mechanic.Reroll: 2, Mechanic.Expire: 2
+    UPROPERTY(EditAnywhere) TMap<FGameplayTag, int32> Stats;
+
+    // Equipment slots are separated out for easier authoring.
+    UPROPERTY(EditAnywhere) FGameplayTagContainer EquipmentSlots;
+
+    // JSON Serialization
+    TSharedPtr<FJsonObject> ToJson() const override;
+    bool FromJson(const TSharedPtr<FJsonObject>& JsonObject) override;
 };
 ```
 
-All card's logic are defined through tags, and how other system react / use the tags. 
-Not only rairty, type, and attributes are expressed through tags, behaviours such as expiration and equipment. Only equipment slots are maintained separately from tags. 
+All card logic is defined through tags and stats, and how other systems react to / use them. Not only rarity, type, and attributes are expressed this way, but also behaviours such as expiration (`Mechanic.Expire`) and rerolls (`Mechanic.Reroll`). Only equipment slots are maintained separately from tags.
 
----
+-----
 
-### 3c. UCardInstance (Runtime Object)
+### 3b. UCardInstance (Runtime Object)
 
 ```cpp
 UCLASS(BlueprintType, Blueprintable)
@@ -187,87 +206,94 @@ public:
     TWeakObjectPtr<UCardDefinition> Definition;
 
     // --- Live State ---
-    UPROPERTY(BlueprintReadWrite) TArray<FCardTag> Tags;
+    UPROPERTY(BlueprintReadWrite) FGameplayTagContainer Tags;                       // mutable copy from definition
+    UPROPERTY(BlueprintReadWrite) TMap<FGameplayTag, int32> Stats;                  // mutable copy from definition
     UPROPERTY(BlueprintReadWrite) TMap<FGameplayTag, TObjectPtr<UCardInstance>> EquippedCards;
-    UPROPERTY(BlueprintReadWrite) int32 RemainingLifespan;
-    UPROPERTY(BlueprintReadOnly)  bool  bIsDestroyed = false;
+    UPROPERTY(BlueprintReadOnly)  bool bIsDestroyed = false;
 
-    // --- Cached Tag Values ---
-    // Rebuilt when tags change or equipment changes. Includes own tags + all equipment bonuses.
-    // Keyed by FGameplayTag for O(1) stat lookups. Call InvalidateTagCache() after mutations.
-    UPROPERTY(Transient) TMap<FGameplayTag, int32> CachedTagValues;
+    // --- Cached (includes equipment contributions) ---
+    UPROPERTY(Transient, BlueprintReadOnly) FGameplayTagContainer MergedTags;       // own + all equipped card tags
+    UPROPERTY(Transient)                    TMap<FGameplayTag, int32> MergedStats;   // own + all equipped card stats
 
     static UCardInstance* CreateFromDefinition(UObject* Outer, UCardDefinition* Def);
 
-    bool  HasTag(FGameplayTag Tag) const;
-    int32 GetTagValue(FGameplayTag Tag) const;     // returns 0 if absent; reads from cache
-    int32 SumTagValues(FGameplayTag Tag) const;    // returns cached value (own + equipment)
+    // --- Presence Queries (reads MergedTags) ---
+    bool HasTag(FGameplayTag Tag) const;               // hierarchical match
+    bool HasTagExact(FGameplayTag Tag) const;           // exact match only
+    bool HasAllTags(const FGameplayTagContainer& Required) const;
+    bool HasAnyTag(const FGameplayTagContainer& Query) const;
 
-    void  InvalidateTagCache();                    // rebuilds CachedTagValues from Tags + EquippedCards
-    void  RebuildTagCache();
+    // --- Value Queries (reads MergedStats) ---
+    int32 GetStat(FGameplayTag StatTag) const;          // 0 if absent
 
+    // --- Cache Management ---
+    void RebuildCache();  // rebuilds both MergedTags and MergedStats from own + equipment
+
+    // --- Equipment ---
     bool Equip(UCardInstance* Card, FGameplayTag SlotTag);
     void Unequip(FGameplayTag SlotTag);
     bool CanEquip(UCardInstance* Card, FGameplayTag SlotTag) const;
 
-    // Called by UTurnManagerSubsystem each StartOfTurn.
+    // --- Lifespan ---
+    // Reads Mechanic.Expire from Stats. Called by UTurnManagerSubsystem each StartOfTurn.
+    // If Mechanic.Expire > 0, decrements it. When it reaches 0, card is destroyed.
     void TickLifespan();
+    int32 GetRemainingLifespan() const;  // returns Stats value for Mechanic.Expire; 0 = permanent
 };
 ```
 
-**Notes**
-**`TWeakObjectPtr` for `Definition`:**
-`TWeakObjectPtr` holds a reference that does not prevent garbage collection. If the underlying `UCardDefinition` DataAsset is unloaded — for example during a hot-reload of mod definitions, or if the definition registry replaces a shipped definition with a mod override — the weak pointer gracefully becomes null rather than keeping a stale definition alive in memory. This avoids two problems: (1) memory leaks where replaced definitions are never GC'd because instances still hold strong references, and (2) silent bugs where instances reference an outdated definition after a mod override. Code that reads `Definition` should null-check it (in practice, definitions are always valid during normal gameplay, but the weak pointer makes the contract explicit and safe against edge cases).
+**Notes:**
 
-**Cached Stat values.** `CachedStatValues` is a `TMap<FGameplayTag, int32>` that aggregates the card's own Stats plus all equipped card bonuses. It is rebuilt by `RebuildStatCache()` whenever stats or equipment change. All stat queries — `GetTagValue()`, `SumTagValues()` — read from the cache for O(1) lookups, eliminating repeated linear scans through tag arrays and equipment trees during stat checks.
+**`TWeakObjectPtr` for `Definition`.** `TWeakObjectPtr` holds a reference that does not prevent garbage collection. If the underlying `UCardDefinition` DataAsset is unloaded — for example during a hot-reload of mod definitions, or if the definition registry replaces a shipped definition with a mod override — the weak pointer gracefully becomes null rather than keeping a stale definition alive in memory. This avoids two problems: (1) memory leaks where replaced definitions are never GC’d because instances still hold strong references, and (2) silent bugs where instances reference an outdated definition after a mod override. Code that reads `Definition` should null-check it (in practice, definitions are always valid during normal gameplay, but the weak pointer makes the contract explicit and safe against edge cases).
 
----
+**Cached merged values.** `MergedTags` and `MergedStats` aggregate the card’s own data plus all equipped card contributions. `MergedTags` is a `FGameplayTagContainer` built by merging the card’s `Tags` with every equipped card’s `Tags` — enabling hierarchical presence queries like `HasTag("Equipment")` or `HasAnyTag(SlotRequirements)`. `MergedStats` is a `TMap<FGameplayTag, int32>` built by summing the card’s `Stats` with every equipped card’s `Stats`. Both are rebuilt by `RebuildCache()` whenever tags, stats, or equipment change. All queries read from the cache for O(1) lookups, eliminating repeated linear scans during stat checks.
 
-### 3d. Example Cards
+**Lifespan via Stats.** Expiration is stored as `Mechanic.Expire` in the Stats map rather than as a separate field. `TickLifespan()` reads and decrements this value. A card with no `Mechanic.Expire` key (or value 0) is permanent.
+
+-----
+
+### 3c. Example Cards
 
 ```
 Edwin
-  Tags: 
-  Character.Main, Character.Male, Character.Commoner
-  Stats: 
-  Card.Rarity: 2, Stat.Sociability:5, Stat.Prowess:3, Stat.Poise:5, Stat.scholarship:2, Stat.Subterfuge:3, Mechanic.Reroll: 2
+  Tags: Character.Main, Character.Human.Commoner, Character.Gender.Male
+  Stats: Card.Rarity:2, Stat.Sociability:5, Stat.Prowess:3, Stat.Poise:5,
+         Stat.Scholarship:2, Stat.Subterfuge:3, Mechanic.Reroll:2
   Equipment slots: Slot.Weapon, Slot.Accessory, Slot.Accessory, Slot.Attire, Slot.Animal
 
 Inside Information
-  Tags: Type.Consumable.Advantage 
-  Stats:
-  Card.Rarity: 2, Stat.Diplomacy:4, Mechanic.Reroll:2
+  Tags: Type.Consumable.Advantage
+  Stats: Card.Rarity:2, Stat.Diplomacy:4, Mechanic.Reroll:2
 
 Diamond Necklace
-  Tags: Type.Equipment.Accessory,
-  Stats:
-  Card.Rarity: 2, Stat.Poise:2
+  Tags: Type.Equipment.Accessory
+  Stats: Card.Rarity:2, Stat.Poise:2
   Equipment slots: Slot.Adornment
 
 Hyacinth Flower
-  Tags: Equipment.Adornment, Trait.FreshFlower, 
-  Stats:
-  Mechanic.Reroll:1, Card.Rarity: 1, Expire: 2 (destroyed after 2 turns)
+  Tags: Equipment.Adornment, Trait.FreshFlower
+  Stats: Card.Rarity:1, Mechanic.Reroll:1, Mechanic.Expire:2
 
 Gold Coin
   Tags: Asset.Gold
-  Card.Rarity: 3
+  Stats: Card.Rarity:3
 
 Cracked Diamond
   Tags: Asset.Gem, Equipment.Adornment, Trait.Broken
-  Stats:
-  Card.Rarity: 4
+  Stats: Card.Rarity:4
 ```
 
----
+-----
 
 ## 4. Cadence System
 
 Events and Stories share the same structural skeleton: a collection of stateful objects with discrete states, a per-phase tick that advances state, and actions that fire on transitions. This is extracted into a reusable **Cadence** pattern that both `UEventSubsystem` and `UStorySubsystem` extend.
 
+**Cadence has zero project-specific dependencies.** The `ICadence` interface, `UCadenceSystem`, and `UCadenceConductor` form a standalone module. They do not reference `UTableSubsystem`, card types, or any game-specific code. Concrete game objects (Events, Stories) implement `ICadence` and cache their own project-specific dependencies at creation time.
+
 This pattern is reusable across future projects. Any system with stateful objects that tick through a phase pipeline — buffs, quests, faction agendas, contracts — can extend `UCadenceSystem` with minimal modification.
 
----
+-----
 
 ### 4a. ICadence
 
@@ -289,6 +315,8 @@ public:
 
     // Called by the cadence system each relevant phase.
     // Returns true if this unit is finished and should be removed.
+    // NOTE: No project-specific parameters. Concrete implementations cache their
+    // own dependencies (e.g. UTableSubsystem) at creation time.
     virtual bool Tick(FGameplayTag Phase) = 0;
 
     // Unique instance ID for logging, save/load, and delegate payloads.
@@ -299,13 +327,11 @@ public:
 };
 ```
 
-**Flexible Component.** 
-
 **Phase-filtered ticking.** Rather than iterating all units every phase, `GetRelevantPhases()` lets each unit declare which phases it responds to. The cadence system partitions units by phase at registration time and only ticks the relevant subset. This is O(relevant units per phase) instead of O(all units), which matters as content scales to hundreds of active events.
 
 **Configurable phases.** The phase pipeline is defined as `FGameplayTag` values rather than a hard-coded enum, allowing designers to add custom phases in the editor without C++ changes. See Section 9 for phase configuration.
 
----
+-----
 
 ### 4b. UCadenceSystem (Abstract Base)
 
@@ -315,7 +341,7 @@ class UCadenceSystem : public UGameInstanceSubsystem
 {
     GENERATED_BODY()
 public:
-    // Called by UTurnManagerSubsystem each phase.
+    // Called by UCadenceConductor each phase.
     void TickPhase(FGameplayTag Phase);
 
     void AddUnit(TScriptInterface<ICadence> Unit);
@@ -340,22 +366,65 @@ protected:
     TArray<TScriptInterface<ICadence>> AllUnits;
 
     // Subclasses override for pre/post-tick logic specific to their domain.
+    // No project-specific parameters — subclasses cache their own dependencies.
     virtual void PrePhase(FGameplayTag Phase)  {}
     virtual void PostPhase(FGameplayTag Phase) {}
 };
 ```
 
-`TickPhase` captures each unit's state before calling `Tick()`. If the state changes, it broadcasts `OnUnitStateChanged`. Units returning `true` are removed and `OnUnitRemoved` is broadcast. Subclasses add typed, domain-specific delegates on top, wrapping the base delegates with fully-typed payloads.
+`TickPhase` captures each unit’s state before calling `Tick()`. If the state changes, it broadcasts `OnUnitStateChanged`. Units returning `true` are removed and `OnUnitRemoved` is broadcast. Subclasses add typed, domain-specific delegates on top, wrapping the base delegates with fully-typed payloads.
 
----
+-----
+
+### 4c. UCadenceConductor (Abstract Base)
+
+The conductor controls the rhythm of the game — it owns the phase sequence, tracks the current turn and phase, and ticks all registered cadence systems in order. It is abstract so that each project can extend it with game-specific phase hooks.
+
+```cpp
+UCLASS(Abstract)
+class UCadenceConductor : public UGameInstanceSubsystem
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(BlueprintReadOnly) int32        CurrentTurn = 1;
+    UPROPERTY(BlueprintReadOnly) FGameplayTag CurrentPhase;
+
+    // Ordered phase sequence. Editable in Blueprint to add/reorder phases.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FGameplayTag> PhaseSequence;
+
+    // Register cadence systems to be ticked. Order of registration determines tick order.
+    void RegisterSystem(UCadenceSystem* System);
+    void UnregisterSystem(UCadenceSystem* System);
+
+    // Advance to the next phase. Subclasses may override to add pre/post hooks.
+    UFUNCTION(BlueprintCallable)
+    virtual void AdvancePhase();
+
+    // Phase query — any system can check this.
+    bool IsInPhase(FGameplayTag Phase) const;
+
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPhaseChanged, FGameplayTag, NewPhase);
+    UPROPERTY(BlueprintAssignable) FOnPhaseChanged OnPhaseChanged;
+
+protected:
+    int32 CurrentPhaseIndex = 0;
+    TArray<TObjectPtr<UCadenceSystem>> RegisteredSystems;
+
+    // Called by AdvancePhase(). Subclasses override for game-specific logic per phase.
+    virtual void OnPhaseExecute(FGameplayTag Phase) {}
+};
+```
+
+-----
 
 ## 5. Event System (Cadence)
 
-Events are the **invisible engine** of the board. They never accept direct player input. Their role is to activate Stories, create cards, modify globals, and chain into further events — driving the game's narrative state machine in the background.
+Events are the **invisible engine** of the board. They never accept direct player input. Their role is to activate Stories, create cards, modify globals, and chain into further events — driving the game’s narrative state machine in the background.
 
 ### 5a. Why a State Machine?
 
-The three states give precise control over _when_ an event acts, not just _whether_ it acts:
+The three states give precise control over *when* an event acts, not just *whether* it acts:
 
 - **Activated** — listening for trigger conditions. The processor only evaluates conditions for Activated events, keeping the check set small.
 - **Triggered** — conditions met; the resolution pipeline processes only Triggered events this phase.
@@ -363,7 +432,7 @@ The three states give precise control over _when_ an event acts, not just _wheth
 
 **Event ID uniqueness on the Board.** No two event instances with the same `DefinitionID` may exist on the Board simultaneously. When `ActivateEvent()` is called, the subsystem first checks whether an instance of that definition is already active. If so, the activation is silently ignored (no-op). This eliminates cascading duplicate events and makes it structurally impossible for the same event to fire more than once at a time.
 
-**Chaining rules.** When Event A's action activates Event B, Event B enters `Activated` this phase but won't `Trigger` until the next eligible phase check. `EEventTriggerPhase::Immediate` means "evaluate at the next phase boundary regardless of which phase that is" — it does **not** mean "evaluate right now within the current action drain." This ensures deterministic ordering and prevents unbounded recursive chains.
+**Chaining rules.** When Event A’s action activates Event B, Event B enters `Activated` this phase but won’t `Trigger` until the next eligible phase check. `EEventTriggerPhase::Immediate` means “evaluate at the next phase boundary regardless of which phase that is” — it does **not** mean “evaluate right now within the current action drain.” This ensures deterministic ordering and prevents unbounded recursive chains.
 
 ```cpp
 UENUM(BlueprintType)
@@ -384,7 +453,7 @@ enum class EEventTriggerPhase : uint8
 };
 ```
 
----
+-----
 
 ### 5b. UEventCondition and UEventAction
 
@@ -408,6 +477,7 @@ public:
 // UCondition_GlobalVariable  — checks a global threshold (>=, <=, ==, >, <)
 // UCondition_StoryResolved   — checks if a Story with given ID resolved this turn
 // UCondition_CardInHand      — checks if a card with a given tag exists in Hand
+// UCondition_CardInSlot      — checks if a card with given tags/stats is in a specific slot
 
 UCLASS(Abstract, EditInlineNew, BlueprintType, Blueprintable)
 class UEventAction : public UObject
@@ -425,11 +495,15 @@ public:
 // UAction_ActivateEvent    — adds an EventInstance to UEventSubsystem (no-op if already active)
 // UAction_CreateStory      — instantiates a Story on the Board via UStorySubsystem
 // UAction_CreateCard       — adds a card instance to Hand or CardPool
-// UAction_ModifyGlobal     — changes a global variable by delta or set
+// UAction_ModifyGlobal     — changes a global variable by delta
+// UAction_SetGlobal        — sets a global variable to an absolute value
+// UAction_GlobalTag        — pushes a tag to global variable container (value = -1, presence only)
 // UAction_DestroyCard      — sends a card to the Graveyard
+// UAction_BoxOption        — presents the player with a dialogue box and branching options
+// UAction_Speech           — displays a speech bubble on a target card
 ```
 
----
+-----
 
 ### 5c. UEventDefinition (Data Asset)
 
@@ -455,7 +529,7 @@ public:
 };
 ```
 
----
+-----
 
 ### 5d. UEventInstance (Runtime)
 
@@ -469,25 +543,27 @@ public:
     UPROPERTY() TWeakObjectPtr<UEventDefinition> Definition;
     UPROPERTY() EEventState State = EEventState::Activated;
 
-    // ICadence
+    // Cached at creation by UEventSubsystem::ActivateEvent().
+    UPROPERTY() TWeakObjectPtr<UTableSubsystem> Table;
+
+    // ICadence — no project-specific parameters
     FGameplayTag GetState() const override;
     FGameplayTagContainer GetRelevantPhases() const override;
     FName GetInstanceID() const override { return InstanceID; }
     FName GetDefinitionID() const override { return Definition->DefinitionID; }
-    bool  Tick(FGameplayTag Phase, UTableSubsystem* Table) override;
+    bool  Tick(FGameplayTag Phase) override;  // uses cached Table reference internally
 
-    bool CheckTrigger(const UTableSubsystem* Table) const;
-    void ExecuteActions(UTableSubsystem* Table);
+    bool CheckTrigger() const;
+    void ExecuteActions();
 
     // Repeatable events reset to Activated; one-shot events return true (remove).
-    void Resolve(UTableSubsystem* Table);
+    void Resolve();
 };
 ```
 
----
+-----
 
 ### 5e. UEventSubsystem
-
 
 ```cpp
 UCLASS()
@@ -497,12 +573,24 @@ class UEventSubsystem : public UCadenceSystem
 public:
     // Activates an event. Returns nullptr (no-op) if an instance with the same
     // DefinitionID is already active on the Board. This enforces event uniqueness.
+    // Sets Table reference on the new instance.
     UEventInstance* ActivateEvent(UEventDefinition* Def);
 
     void            DeactivateEvent(UEventInstance* Event);
 
     // Returns true if an event with this DefinitionID is currently active.
     bool IsEventActive(FName DefinitionID) const;
+
+    // --- Action Queue ---
+    // Actions from event triggers and stat check results are queued here.
+    // Drained during PostPhase on Phase.EventResolution.
+    void QueueActions(const TArray<UEventAction*>& Actions);
+
+    // Maximum actions drained per EventResolution phase.
+    // If exceeded, remaining actions overflow to the next turn's EventResolution.
+    // A warning is logged when the limit is hit.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 MaxActionsPerPhase = 1000;
 
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEventActivated, UEventInstance*, Event);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEventTriggered, UEventInstance*, Event);
@@ -513,13 +601,19 @@ protected:
     // Tracks active DefinitionIDs for O(1) uniqueness checks.
     TSet<FName> ActiveDefinitionIDs;
 
-    // PostPhase collects actions from newly Triggered events and
-    // routes them to UTurnManagerSubsystem's action queue.
-    void PostPhase(FGameplayTag Phase, UTableSubsystem* Table) override;
+    // Action queue — drained during EventResolution.
+    TArray<TObjectPtr<UEventAction>> ActionQueue;
+
+    // Cached at Initialize().
+    TWeakObjectPtr<UTableSubsystem> Table;
+
+    // PostPhase: on EventResolution, drains ActionQueue (up to MaxActionsPerPhase).
+    // On AfterStoryResolved/AfterEvent, evaluates newly Activated events.
+    void PostPhase(FGameplayTag Phase) override;
 };
 ```
 
----
+-----
 
 ## 6. Story System (Cadence)
 
@@ -542,7 +636,7 @@ enum class EStoryState : uint8
 };
 ```
 
----
+-----
 
 ### 6b. FStorySlotDefinition and FStorySlotState
 
@@ -560,10 +654,24 @@ struct FStorySlotDefinition
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere) FName              SlotID;
-    UPROPERTY(EditAnywhere) EStorySlotType     SlotType;
+    UPROPERTY(EditAnywhere) EStorySlotType     SlotType = EStorySlotType::Required;
 
+    // Designer-facing label and description.
+    UPROPERTY(EditAnywhere) FText              Label;     // e.g. "Main Character", "Gift"
+    UPROPERTY(EditAnywhere) FText              Text;      // flavor text shown on hover
+
+    // --- Tag Requirements ---
     // All listed tags must be present on every card placed in this slot.
     UPROPERTY(EditAnywhere) FGameplayTagContainer RequiredTags;
+
+    // At least one of these tags must be present. Empty = no any-tag requirement.
+    UPROPERTY(EditAnywhere) FGameplayTagContainer AnyTags;
+
+    // --- Stat Requirements ---
+    // Optional stat conditions on the card itself (e.g. "Card.Rarity >= 3").
+    // All must pass for the card to be valid in this slot.
+    UPROPERTY(EditAnywhere, Instanced)
+    TArray<TObjectPtr<UEventCondition>> RequiredStatConditions;
 
     // For named-card slots (e.g. "Annual Report of the Great Counties").
     UPROPERTY(EditAnywhere) FName              RequiredCardID;   // DefinitionID, empty = any matching card
@@ -573,12 +681,9 @@ struct FStorySlotDefinition
     UPROPERTY(EditAnywhere) bool               bAllowStack = false;
 
     // Maximum number of cards allowed in this slot. 0 = unlimited.
-    // Only meaningful when bAllowStack is true; ignored otherwise.
     UPROPERTY(EditAnywhere) int32              MaxStackSize = 0;
 
     // Minimum number of cards required in this slot for it to count as "filled."
-    // For non-stacking slots this is implicitly 1 (any card present = filled).
-    // For stacking slots, e.g. MinStackSize = 10 means "at least 10 gold coins."
     UPROPERTY(EditAnywhere) int32              MinStackSize = 1;
 };
 
@@ -604,9 +709,9 @@ struct FStorySlotState
 };
 ```
 
-**Stacking resolves the resource ambiguity.** Rather than encoding "10 gold" as a tag value on a single card, the player places 10 individual Gold Coin cards into a stacking slot with `MinStackSize = 10`. This keeps cards as discrete atomic units, makes resource spending visible and interactive, and works naturally with the existing card system (each Gold Coin has its own lifespan, tags, and can be individually destroyed or recalled).
+**Stacking resolves the resource ambiguity.** Rather than encoding “10 gold” as a tag value on a single card, the player places 10 individual Gold Coin cards into a stacking slot with `MinStackSize = 10`. This keeps cards as discrete atomic units, makes resource spending visible and interactive, and works naturally with the existing card system.
 
----
+-----
 
 ### 6c. UStoryDefinition (Data Asset)
 
@@ -628,20 +733,23 @@ public:
     UPROPERTY(EditAnywhere, Instanced)
     TArray<TObjectPtr<UStatCheck>> StatChecks;
 
+    // --- Resolution Prior ---
+    // Prioritized result branches evaluated immediately after commit (regardless of duration),
+    // before the story fully resolves. If any branch here fires, the main resolution
+    // results for that result_id are skipped. Useful for critical interrupts, branching
+    // paths, or early-exit conditions (e.g. presenting a blackmail item).
+    // Only static checks are recommended here.
+    UPROPERTY(EditAnywhere, Instanced)
+    TArray<TObjectPtr<UStatCheckResult>> ResolutionPrior;
+
     // --- On-Expire Behavior ---
-    // Actions executed when the Story expires without being committed.
     UPROPERTY(EditAnywhere, Instanced)
     TArray<TObjectPtr<UEventAction>> OnExpire;
 
-    // Default behavior: all non-consumable cards placed in the Story are returned to Hand.
-    // Consumable cards (tag Type.Consumable) are destroyed. Override actions in OnExpire
-    // can destroy, move, or transform cards as needed.
+    // Default: non-consumable cards returned to Hand, consumable cards destroyed.
     UPROPERTY(EditAnywhere) bool bReturnCardsOnExpire = true;
 
     // --- On-End Behavior ---
-    // Default end-of-Story behavior (after all checks resolve):
-    // Non-consumable cards are returned to Hand. Consumable cards are destroyed.
-    // Check result actions may override this per-card (e.g. Action_DestroyCard).
     UPROPERTY(EditAnywhere) bool bReturnCardsOnEnd = true;
 
     TSharedPtr<FJsonObject> ToJson() const override;
@@ -649,9 +757,9 @@ public:
 };
 ```
 
-**No Story-level success/failure actions.** All outcome logic is defined per-check via result branches (see Section 7). This makes each check self-contained: its conditions determine what happens, and the Story is simply the container. This avoids the ambiguity of mapping mixed check outcomes to a single "Story success" — designers define exactly what each check result does.
+**No Story-level success/failure actions.** All outcome logic is defined per-check via result branches (see Section 7). This makes each check self-contained. `ResolutionPrior` allows early-exit branches that preempt main resolution — such as presenting a blackmail item that completely changes the story’s direction.
 
----
+-----
 
 ### 6d. UStoryInstance (Runtime)
 
@@ -668,22 +776,24 @@ public:
     UPROPERTY() int32              TurnPlacedOn;
     UPROPERTY() EStoryState        State = EStoryState::Available;
 
-    // --- Cached Tag Values ---
-    // Aggregated tag values across all cards placed in all slots (including equipment).
-    // Rebuilt when cards are placed or removed. Used for stat check queries.
-    UPROPERTY(Transient) TMap<FGameplayTag, int32> CachedSlotTagValues;
+    // --- Cached Slot Aggregates ---
+    UPROPERTY(Transient) FGameplayTagContainer SlotMergedTags;       // all placed cards' tags merged
+    UPROPERTY(Transient) TMap<FGameplayTag, int32> SlotMergedStats;  // all placed cards' stats summed
 
-    // ICadence
+    // Cached at creation by UStorySubsystem::AddStory().
+    UPROPERTY() TWeakObjectPtr<UTableSubsystem> Table;
+
+    // ICadence — no project-specific parameters
     FGameplayTag GetState() const override;
     FGameplayTagContainer GetRelevantPhases() const override;
     FName GetInstanceID() const override { return InstanceID; }
     FName GetDefinitionID() const override { return Definition->DefinitionID; }
-    bool  Tick(FGameplayTag Phase, UTableSubsystem* Table) override;
+    bool  Tick(FGameplayTag Phase) override;  // uses cached Table reference internally
 
     // Slot management — called by UStorySubsystem on behalf of player input.
     bool CanPlaceCard(UCardInstance* Card, FName SlotID) const;
     bool PlaceCard(UCardInstance* Card, FName SlotID);
-    void RemoveCard(UCardInstance* Card, FName SlotID);  // removes specific card from slot (supports stacks)
+    void RemoveCard(UCardInstance* Card, FName SlotID);
     void RemoveAllCards(FName SlotID);
     bool AreRequiredSlotsFilled() const;
 
@@ -693,29 +803,18 @@ public:
     int32 GetSlotCardCount(FName SlotID) const;
 
     // Aggregate stat from cards in specified slots (or all if LimitToSlots is empty).
-    // Reads from CachedSlotTagValues for efficiency.
     int32 GetTotalStatValue(FGameplayTag StatTag, const TArray<FName>& LimitToSlots = {}) const;
 
-    void InvalidateSlotTagCache();
-    void RebuildSlotTagCache();
+    void RebuildSlotCache();
 
-    // Player commits the Story. All required slots must be filled.
-    // TurnsToResolve == 0: calls Resolve() immediately.
-    // TurnsToResolve  > 0: sets State = Resolving, locks all placed cards.
-    bool Commit(UTableSubsystem* Table);
-
-    void Resolve(UTableSubsystem* Table);  // creates UStatCheckSession, fires check result actions
-
-    // Returns cards to Hand (non-consumable) or destroys them (consumable),
-    // then fires OnExpire actions.
-    void Expire(UTableSubsystem* Table);
-
-    // Called after resolution or expiry to return cards per Story definition rules.
-    void ReturnOrDestroyCards(UTableSubsystem* Table);
+    bool Commit();    // uses cached Table
+    void Resolve();   // creates UStatCheckSession, fires check result actions
+    void Expire();    // returns cards, fires OnExpire actions
+    void ReturnOrDestroyCards();
 };
 ```
 
----
+-----
 
 ### 6e. UStorySubsystem
 
@@ -728,10 +827,17 @@ public:
     UStoryInstance* AddStory(UStoryDefinition* Def);
     void            RemoveStory(UStoryInstance* Story);
 
-    // All three validate that the game is in Planning phase before acting.
+    // --- Player Input ---
+    // These are the single path by which the UI affects story state.
+    // All validate that the conductor is in Planning phase before acting.
+    UFUNCTION(BlueprintCallable)
     bool PlaceCard(UCardInstance* Card, UStoryInstance* Story, FName SlotID);
+
+    UFUNCTION(BlueprintCallable)
     bool RecallCard(UCardInstance* Card, UStoryInstance* Story, FName SlotID);
-    bool CommitStory(UStoryInstance* Story, UTableSubsystem* Table);
+
+    UFUNCTION(BlueprintCallable)
+    bool CommitStory(UStoryInstance* Story);
 
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStoryCommitted, UStoryInstance*, Story);
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStoryResolved,  UStoryInstance*, Story);
@@ -739,13 +845,17 @@ public:
     UPROPERTY(BlueprintAssignable) FOnStoryResolved  OnStoryResolved;
 
 protected:
+    // Cached at Initialize().
+    TWeakObjectPtr<UTableSubsystem> Table;
+    TWeakObjectPtr<UCadenceConductor> Conductor;  // for phase validation
+
     // PrePhase(StartOfTurn): checks deadlines, expires overdue Stories,
     // returns/destroys cards from expired Stories.
-    void PrePhase(FGameplayTag Phase, UTableSubsystem* Table) override;
+    void PrePhase(FGameplayTag Phase) override;
 };
 ```
 
----
+-----
 
 ## 7. Stat Check System
 
@@ -761,12 +871,12 @@ Where:
 
 - `n = 1 + Σ(modifier.Evaluate())` — base pool is always 1; modifiers contribute bonus dice when their conditions are met
 - `Aggregate = Max` (advantage, default) or `Min` (disadvantage, punishing)
-- `SummedStat` = sum of named tags across cards in specified slots, including equipment
-- `final_result` is then evaluated against the check's result branches in order
+- `SummedStat` = sum of named stats across cards in specified slots, including equipment
+- `final_result` is then evaluated against the check’s result branches in order
 
 Static checks skip dice entirely: evaluate `SummedStat` against result branch conditions. No roll, no modifiers, no rerolls.
 
----
+-----
 
 ### 7b. FStatScope — Where Stats Come From
 
@@ -786,7 +896,7 @@ struct FStatScope
 
 Multiple `FStatScope` entries on one check are summed together before being added to the roll, enabling expressions like `Slot2.Stat.Support + Slot3.Stat.Support`.
 
----
+-----
 
 ### 7c. ERollAggregate
 
@@ -799,11 +909,13 @@ enum class ERollAggregate : uint8
 };
 ```
 
----
+-----
 
 ### 7d. URollModifier — Attachable Dice Bonus Conditions
 
 Roll modifiers use the same `Abstract` + `EditInlineNew` + `Instanced` pattern as `UEventCondition` and `UEventAction`. Each modifier evaluates a condition at roll time and contributes bonus dice to the pool if met.
+
+Modifiers can optionally carry their own narrative text (`ResultTitle`, `ResultText`) displayed when their condition is met, adding context to why the player got bonus dice.
 
 ```cpp
 UCLASS(Abstract, EditInlineNew, BlueprintType, Blueprintable)
@@ -812,7 +924,14 @@ class URollModifier : public UObject
     GENERATED_BODY()
 public:
     UPROPERTY(EditAnywhere) int32 BonusDice = 1;
-    UPROPERTY(EditAnywhere) FText DisplayLabel;
+    UPROPERTY(EditAnywhere) FText Hint;          // shown on Story intro (empty = hidden)
+    UPROPERTY(EditAnywhere) FText ResultTitle;    // shown when condition met during resolution
+    UPROPERTY(EditAnywhere) FText ResultText;     // narrative text for this modifier's activation
+
+    // Conditions — all must be met for this modifier to grant bonus dice.
+    // Reuses UEventCondition for consistency with the polymorphic pattern.
+    UPROPERTY(EditAnywhere, Instanced)
+    TArray<TObjectPtr<UEventCondition>> Conditions;
 
     UFUNCTION(BlueprintNativeEvent)
     int32 Evaluate(const UStoryInstance* Story,
@@ -827,7 +946,7 @@ public:
 **Shipped subclasses:**
 
 ```cpp
-// Bonus dice if a card matching RequiredTags is placed in SlotID.
+// Bonus dice if a card matching conditions is placed in SlotID.
 UCLASS(EditInlineNew)
 class URollMod_CardInSlot : public URollModifier
 {
@@ -835,12 +954,12 @@ class URollMod_CardInSlot : public URollModifier
     UPROPERTY(EditAnywhere) FGameplayTagContainer  RequiredTags;
 };
 
-// Bonus dice if a previous check in this session achieved a minimum tier.
+// Bonus dice if a previous check in this session achieved a minimum result.
 UCLASS(EditInlineNew)
 class URollMod_PriorCheckTier : public URollModifier
 {
     UPROPERTY(EditAnywhere) int32              CheckIndex;
-    UPROPERTY(EditAnywhere) FName              MinimumResultID;  // result branch ID from earlier check
+    UPROPERTY(EditAnywhere) FName              MinimumResultID;
 };
 
 // Bonus dice if a global variable meets a condition.
@@ -860,16 +979,18 @@ class URollMod_CardHasTag : public URollModifier
     UPROPERTY(EditAnywhere) FGameplayTag       RequiredTag;
 };
 
-// Bonus dice equal to the value of a named tag on cards in SlotID.
+// Bonus dice based on the numeric value of a stat across cards in SlotID.
 UCLASS(EditInlineNew)
-class URollMod_TagValue : public URollModifier
+class URollMod_StatMet : public URollModifier
 {
-    UPROPERTY(EditAnywhere) FName              SlotID;
-    UPROPERTY(EditAnywhere) FGameplayTag       TagName;
+    UPROPERTY(EditAnywhere) FName              SlotID;       // empty = all slots
+    UPROPERTY(EditAnywhere) FGameplayTag       StatTag;
+    UPROPERTY(EditAnywhere) EComparisonOp      Operator;
+    UPROPERTY(EditAnywhere) int32              Value;
 };
 ```
 
----
+-----
 
 ### 7e. UStatCheckResult — Per-Check Result Branch
 
@@ -894,7 +1015,7 @@ class UStatCheckResult : public UObject
 {
     GENERATED_BODY()
 public:
-    // Unique ID for this result branch within the check (e.g. "critical_success", "failure").
+    // Unique ID for this result branch within the check.
     UPROPERTY(EditAnywhere) FName ResultID;
 
     // Conditions — all must be true for this branch to activate.
@@ -913,9 +1034,11 @@ public:
 };
 ```
 
-**Branch evaluation is first-match.** Branches are tested in array order; the first one whose conditions all pass is selected. This means designers should order branches from most specific (highest threshold) to least specific (fallback). The last branch can have no conditions to serve as a guaranteed fallback.
+**Branch evaluation is first-match.** Branches are tested in array order; the first one whose conditions all pass is selected. Designers should order branches from most specific (highest threshold) to least specific (fallback). The last branch can have empty conditions to serve as a guaranteed fallback.
 
----
+**Result grouping.** In JSON, results under the same `result_id` form a group — only one result from each group fires. Multiple groups with different IDs are evaluated independently, allowing parallel narrative tracks (e.g. a diplomacy outcome and a separate narration block both fire from the same story).
+
+-----
 
 ### 7f. UStatCheck — One Check Definition (Concrete)
 
@@ -950,7 +1073,7 @@ public:
 
 Note: `UStatCheck` is **concrete** (not `Abstract`). It is instantiated directly on `UStoryDefinition` via the `Instanced` property. There are no subclasses — all variation is expressed through `CheckType`, `DiceModifiers`, and `Results`.
 
----
+-----
 
 ### 7g. FStatCheckOutcome — Per-Check Record
 
@@ -971,13 +1094,11 @@ struct FStatCheckOutcome
 };
 ```
 
----
+-----
 
 ### 7h. FPendingRollData — Delegate Payload Struct
 
 ```cpp
-// Wraps roll data for Blueprint-safe delegate broadcasting.
-// Used instead of passing raw TArray<int32> by const reference in dynamic delegates.
 USTRUCT(BlueprintType)
 struct FPendingRollData
 {
@@ -990,7 +1111,7 @@ struct FPendingRollData
 };
 ```
 
----
+-----
 
 ### 7i. UStatCheckSession — Runtime Resolution
 
@@ -1005,8 +1126,8 @@ public:
     static UStatCheckSession* CreateForStory(UObject* Outer, UStoryInstance* Story);
 
     UPROPERTY() TObjectPtr<UStoryInstance>  OwningStory;
-    UPROPERTY() int32 TotalRerolls;        // summed from all placed cards' "Mechanic.Reroll" tags at creation
-    UPROPERTY() int32 RemainingRerolls;    // decremented as player spends them
+    UPROPERTY() int32 TotalRerolls;        // summed from all placed cards' "Mechanic.Reroll" stats at creation
+    UPROPERTY() int32 RemainingRerolls;
     UPROPERTY() int32 CurrentCheckIndex = 0;
     UPROPERTY() TArray<FStatCheckOutcome> Outcomes;
 
@@ -1017,30 +1138,30 @@ public:
     //             a check was evaluated. The session fires the delegate and
     //             the UI is responsible for the pause timing.
     //   DiceRoll: rolls dice, stores pending result, broadcasts to UI.
-    void ResolveCurrentCheck(UTableSubsystem* Table);
+    void ResolveCurrentCheck();
 
-    // Player spends 1 reroll on the current check.
     bool SpendReroll();
-
-    // Player accepts current result. Advances to next check.
-    void ConfirmCurrentCheck(UTableSubsystem* Table);
+    void ConfirmCurrentCheck();
 
     bool IsComplete() const;
 
     // Called after all checks are confirmed.
     // Fires each check's selected result branch actions.
-    // Queues all resulting actions into UTurnManagerSubsystem's ActionQueue.
-    void Finalize(UTableSubsystem* Table);
+    // Queues all resulting actions into UEventSubsystem's ActionQueue.
+    void Finalize();
 
     bool  CanReroll() const;
     FName GetPendingResultID() const;
 
-    // Broadcast after every roll and reroll — UI updates dice display and result preview.
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPendingRollReady, FPendingRollData, RollData);
     UPROPERTY(BlueprintAssignable) FOnPendingRollReady OnPendingRollReady;
 
 private:
     FPendingRollData PendingRoll;
+
+    // Cached references — set at creation.
+    TWeakObjectPtr<UTableSubsystem> Table;
+    TWeakObjectPtr<UEventSubsystem> Events;  // for QueueActions()
 
     int32         SumStatForCheck(const UStatCheck* Check) const;
     TArray<int32> RollDice(int32 NumDice);
@@ -1071,29 +1192,32 @@ Player calls ConfirmCurrentCheck():
   → Static checks auto-advance without broadcasting or waiting for input
 ```
 
----
+-----
 
 ### 7j. JSON Schema for a Check with Result Branches
 
 ```json
 {
   "check_id": "r1",
-  "stat_sources": [
-    { "Stat.Sociability": [1] },
-    { "Stat.Subterfuge": [] }
-  ], //by default, stat check source stat bonus from all cards placed in a story, unless s slot id like s1 is specified in the array
+  "stat_sources": {
+    "Stat.Sociability": [1],
+    "Stat.Subterfuge": []
+  },
   "check_type": {
-        "$type":"Roll", // "Roll" or "Static". Static checks has no aggregate and dice mod.
-        "aggregate": "Max", // take the max result out of all the dice(s) rolled.
-        "dice_modifiers": [ // any bonus dice to roll based on circunstances
-            { "$type": "StatMet", // this function checks if the total stats of the following cards meet a requirement. 
-            "slot_id": [], // no id specified means all cards. 
-            "stat": "Stat.Poise" ,
-            "bonus_dice": 1,
-            "hint": "", // empty means no hint is displayed on the story intro.  
-            "result_title": "",
-            "result_text": "You hold your liqour incredibly well at the party. " }]
-    },
+    "$type": "Roll",
+    "aggregate": "Max",
+    "dice_modifiers": [
+      {
+        "$type": "StatMet",
+        "slot_id": [],
+        "stat": "Stat.Poise",
+        "bonus_dice": 1,
+        "hint": "",
+        "result_title": "",
+        "result_text": "You hold your liquor incredibly well at the party."
+      }
+    ]
+  },
   "results": [
     {
       "result_id": "chase_success",
@@ -1119,154 +1243,149 @@ Player calls ConfirmCurrentCheck():
 }
 ```
 
----
+-----
 
 ### 7k. Full Story JSON Example
 
 ```json
 {
-  "id": "story.private_audience", // id of the story, "story." prefix shows the type of the definition. 
-  "name": "Private Audience with the King", // Name of the story shown on the map. 
-  "deadline": 3, // turns before it expires, 0 for no deadline.
-  "duration": 2, // turns it takes to resolve, 0 for instant resolution.
-  "persistent": false, // if true, the story will stay on the map after resolution and can be resolved multiple times until it expires.
-  "expire": { // actions on expire, can be left empty or omitted if no action is needed.
+  "id": "story.private_audience",
+  "name": "Private Audience with the King",
+  "deadline": 3,
+  "duration": 2,
+  "persistent": false,
+  "expire": {
     "actions": [
       { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": -20 },
       { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": -10 },
-      { "$type": "BoxOption", "text": "You missed your chance to meet with the King. The court is abuzz with gossip about your absence...", 
-        "option":[
-            {"text":"Write a apology letter to the King", 
-            "actions":[{ "$type": "EventOn", "key": "event.audience_missed" }
-            ]},
-            {"text":"Request Another Audience", 
-            "actions":[
-                { "$type": "EventOn", "key": "event.audience_secondchance" }
-            ]}]
-       }
-
+      { "$type": "BoxOption",
+        "text": "You missed your chance to meet with the King. The court is abuzz with gossip about your absence...",
+        "option": [
+          { "text": "Write an apology letter to the King",
+            "actions": [{ "$type": "EventOn", "key": "event.audience_missed" }] },
+          { "text": "Request Another Audience",
+            "actions": [{ "$type": "EventOn", "key": "event.audience_secondchance" }] }
+        ]
+      }
     ]
   },
-  "slots": [ // Slots define the required or optional cards that must be played to attempt the story.
-    // required fields: slot_id, label, text, type (Required or Optional, default Required)
-    // the condition evaluation here uses the "CardInSlot" condition logic, meaning it can specify required_tags, required_stats, any_tags, stack, etc as needed. The card is valid when all the conditions listed evaluate true.  
-    { "slot_id": 1, // unique number id
-      "label": "Main Character", // this is mostly a designer display label, it doesn't affect the logic. No need to set. 
-      "text": "You have to be there.", // flavor text shown to the player when hovered. 
-      "type": "Required", // "Required" or "Optional"
-      "required_tags": ["Character.Main"]}, // the card must have all the tags in this list to be played in the slot. 
-    { "slot_id": 2, "label": "Companion", "text": "A noble companion might be helpful.", "type": "Optional",
-      "required_tags": ["Character.Companion", "Character.Noble"]},
-    { "slot_id": 3, "label": "Gift", "text": "A gift is expected, must not be too shabby.", "type": "Required",
-      "required_stats":[{"tag":"Rarity","operator": ">=", "value":3}], // optional field: required stats condition on the card. 
-      "any_tags": ["Asset", "Item", "Equipment"], // optional field: the card must have at least one of the tags in this list to be played in the slot.
-      "stack": true, "min_stack": 10, "max_stack": 0 }, // optional field: cards in this slot can be stacked, and must have a stack count between min_stack and max_stack (0 means no max).  
-    { "slot_id": 4, "label": "Annual Report", "text": "An annual report is required.", "type": "Required",
-      "required_card": "card.annual_report"}, // optional field: require specific card by id. 
-    { "slot_id": 5, "label": "Consumable", "text": "", "type": "Optional",
+  "slots": [
+    { "slot_id": 1, "label": "Main Character",
+      "text": "You have to be there.",
+      "type": "Required",
+      "required_tags": ["Character.Main"] },
+    { "slot_id": 2, "label": "Companion",
+      "text": "A noble companion might be helpful.",
+      "type": "Optional",
+      "required_tags": ["Character.Companion", "Character.Noble"] },
+    { "slot_id": 3, "label": "Gift",
+      "text": "A gift is expected, must not be too shabby.",
+      "type": "Required",
+      "required_stats": [{ "tag": "Rarity", "operator": ">=", "value": 3 }],
+      "any_tags": ["Asset", "Item", "Equipment"],
+      "stack": true, "min_stack": 10, "max_stack": 0 },
+    { "slot_id": 4, "label": "Annual Report",
+      "text": "An annual report is required.",
+      "type": "Required",
+      "required_card": "card.annual_report" },
+    { "slot_id": 5, "label": "Consumable",
+      "text": "",
+      "type": "Optional",
       "required_tags": ["Consumable"],
       "stack": true, "min_stack": 1, "max_stack": 5 }
   ],
-  "stat_checks": [ // result are associated with each stat check. If you leave 
+  "stat_checks": [
     {
-      "check_id": "audience_diplomacy", // unique id for this check, could be any string, no space allowed.
-      "stat_sources": [{ "Stat.Diplomacy":[]}], //by default, stat check source stat bonus from all cards placed in a story, unless s slot id is specified in the array
+      "check_id": "audience_diplomacy",
+      "stat_sources": { "Stat.Diplomacy": [] },
       "check_type": {
-        "$type":"Roll", // "Roll" or "Static". Static checks has no aggregate and dice mod.
-        "aggregate": "Max", // take the max result out of all the dice(s) rolled.
-        "dice_modifiers": [ // any bonus dice to roll based on circunstances
-            { "condition":[{"$type": "CardInSlot", "slot_id": 2, "required_tags": ["Character.Council"]}],
-             "bonus_dice": 1,
+        "$type": "Roll",
+        "aggregate": "Max",
+        "dice_modifiers": [
+          { "condition": [{ "$type": "CardInSlot", "slot_id": 2, "required_tags": ["Character.Council"] }],
+            "bonus_dice": 1,
             "hint": "Another Council member might be good company.",
             "result_title": "Council Support",
             "result_text": "Your companion's presence reassures the King, giving you an edge in your audience." },
-            { "$type": "GlobalCheck", "key": "gv.RoyalFavor",
-              "operator": ">=", "value": 50, "bonus_dice": 1,
-              "display_label": "Royal court's trust aids your goals. " ,
-              "result_title": "Royal Favor",
-              "result_text": "The King trusts you, your friendship is still ever dear to him." }
+          { "$type": "GlobalCheck", "key": "gv.RoyalFavor",
+            "operator": ">=", "value": 50, "bonus_dice": 1,
+            "hint": "Royal court's trust aids your goals.",
+            "result_title": "Royal Favor",
+            "result_text": "The King trusts you, your friendship is still ever dear to him." }
         ]
-        }
-    }],
-  "resolution_prior":[ // prioritized results, if any result excuted here, results will be skipped, similar to resolution, only 1 result from the same result id will be executed. This is useful for critical failure/success or any result that might interrupt the story resolution and cause a branch.
-    {"result_id":"pre_result",
+      }
+    }
+  ],
+  "resolution_prior": [
+    { "result_id": "pre_result",
       "conditions": [{ "$type": "CardInSlot", "slot_id": 3, "required_tags": ["special.KingShame"] }],
-      "result_title":"A Bitter Reminder",
+      "result_title": "A Bitter Reminder",
       "result_text": "The King notices your gift and his eyes grew cold. He takes the report from you and dismiss you without a word. Is your mockery effective in forcing his move?",
       "actions": [
-        { "$type": "GlobalTag", "key": "gv.event.audience_blackmailed" }, // push a tag to global variable container, but without setting a proper value set, value checks will return -1. 
-        { "$type": "GlobalSet", "key": "gv.event.audience_attended", "value": 1 }, // this tag will be in the global variable container, but also has a value associated with it. 
-        {"$type": "Speech", "target": "Card.Character.Main", "text":"He will surely take the hint." },
-        {"$type": "Speech", "target": "Card.Character.Main", "text":"Let's hope Cezar's plan works." }
-      ]}
-  ], // evaluations right after commit (regardless of the duration), before the story is fully resolved. Only a static check are recommended here.   
+        { "$type": "GlobalTag", "key": "gv.event.audience_blackmailed" },
+        { "$type": "GlobalSet", "key": "gv.event.audience_attended", "value": 1 },
+        { "$type": "Speech", "target": "Card.Character.Main", "text": "He will surely take the hint." },
+        { "$type": "Speech", "target": "Card.Character.Main", "text": "Let's hope Cezar's plan works." }
+      ]
+    }
+  ],
   "resolution": [
-    {"result_id":"r1", // only one result from the same result id will be executed, but results from different id will be evaluated seperately. 
-        "results":[
-        { // Note: Results are evaluated in order, so more specific conditions should come first. 
-          "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 20 }],
+    { "result_id": "r1",
+      "results": [
+        { "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 20 }],
           "result_title": "Royal Favor",
           "result_text": "The King is deeply impressed by your counsel and generosity...",
           "actions": [
-            { "$type": "Stat", "key": "gv.RoyalFavor", "value": 30 },
+            { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": 30 },
             { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": 10 }
-          ]
-        },
-        { 
-          "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 15 }],
+          ] },
+        { "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 15 }],
           "result_title": "A Productive Meeting",
           "result_text": "The King listens attentively and nods along...",
           "actions": [
             { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": 20 },
             { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": 5 }
-          ]
-        },
-        {
-          "result_id": "partial",
-          "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 10 }],
+          ] },
+        { "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 10 }],
           "result_title": "Polite but Distant",
           "result_text": "The King acknowledges your words but seems distracted...",
           "actions": [
             { "$type": "GlobalAdd", "key": "gv.RoyalFavor", "value": 10 }
-          ]
-        },
-        {
-          "result_id": "failure",
-          "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 1 }],
+          ] },
+        { "conditions": [{ "check_id": "audience_diplomacy", "operator": ">=", "value": 1 }],
           "result_title": "A Cold Reception",
           "result_text": "The King barely acknowledges your presence...",
-          "actions": []
-        },
-        {
-          "result_id": "critical_failure",
-          "conditions": [],
+          "actions": [] },
+        { "conditions": [],
           "result_title": "The King's Displeasure",
           "result_text": "Your words fall flat. The King's expression darkens...",
           "actions": [
             { "$type": "EventOn", "event_id": "event.king_displeasure" }
-          ]
-        }
-    ]},
-    {"result_id":"narration2", "results":[
-        {
-          "conditions": [], // narrative results can be set to have no condition, therefore it will always be executed. 
+          ] }
+      ]
+    },
+    { "result_id": "narration2",
+      "results": [
+        { "conditions": [],
           "result_title": "",
           "result_text": "Regardless of the outcome, you have made your move in the court, and the consequences will unfold in the days to come.",
           "actions": [
-            { "$type": "GlobalSet", "key": "gv.event.audience_attended", "value": 1 } // this tag will be in the global variable container, but also has a value associated with it. 
-    ]}]}
-],
+            { "$type": "GlobalSet", "key": "gv.event.audience_attended", "value": 1 }
+          ] }
+      ]
+    }
+  ],
   "on_expire": [
     { "$type": "GlobalAdd", "key": "gv.KingdomStability", "value": -5 }
   ]
 }
 ```
 
----
+-----
 
 ## 8. Table Subsystem
 
-`UTableSubsystem` is the **pure data layer** — it owns all game state collections and exposes delegates for the UI. It contains no logic; all logic lives in `UTurnManagerSubsystem`, `UEventSubsystem`, and `UStorySubsystem`.
+`UTableSubsystem` is the **pure data layer** — it owns all game state collections and exposes delegates for the UI. It contains no logic; all logic lives in `UEventSubsystem` and `UStorySubsystem`.
 
 Keeping state in a single subsystem makes cross-system queries trivial (`GetCardsWithTag`, `FindStoryByID`), centralizes the delegate surface for UI bindings, and keeps save/load simple. It extends `UGameInstanceSubsystem` so it persists across level loads and is accessible anywhere via `GetGameInstance()->GetSubsystem<UTableSubsystem>()`.
 
@@ -1285,8 +1404,6 @@ public:
     UPROPERTY() TMap<FGameplayTag, int32>           Globals;     // "gv.KingdomStability", "gv.Treasury" ...
 
     // --- Tag Index ---
-    // Maintained automatically via delegates. Maps tags to cards that have them.
-    // Used for bulk queries like "find all cards with Stat.Diplomacy >= 3".
     UPROPERTY(Transient) TMap<FGameplayTag, TArray<TObjectPtr<UCardInstance>>> TagIndex;
 
     // --- Delegates ---
@@ -1310,9 +1427,10 @@ public:
     int32 GetGlobal(FGameplayTag Key, int32 Default = 0) const;
     void  SetGlobal(FGameplayTag Key, int32 Value);
     void  ModifyGlobal(FGameplayTag Key, int32 Delta);
+    void  PushGlobalTag(FGameplayTag Key);  // presence-only tag, value = -1
 
     // --- Queries ---
-    TArray<UCardInstance*> GetCardsWithTag(FGameplayTag Tag) const;     // uses TagIndex
+    TArray<UCardInstance*> GetCardsWithTag(FGameplayTag Tag) const;
     UStoryInstance*        FindStoryByID(FName DefinitionID) const;
     UStoryInstance*        FindStoryByInstanceID(FName InstanceID) const;
 
@@ -1322,15 +1440,15 @@ public:
 };
 ```
 
----
+-----
 
 ## 9. Turn Manager Subsystem
 
-`UTurnManagerSubsystem` owns the phase pipeline and orchestrates all other subsystems. It is the only place phase transitions occur. All player input methods here are the single path by which UI affects game state.
+`UTurnManagerSubsystem` extends `UCadenceConductor` to add game-specific phase hooks — undo snapshot capture, card lifespan ticking, and any future project-specific behavior. It is the only place phase transitions occur.
 
 ### 9a. Configurable Phase Pipeline
 
-Phases are defined as `FGameplayTag` values rather than a hard-coded enum. The default phase sequence is configured as a `TArray<FGameplayTag>` on the Turn Manager, editable in Blueprint. This allows designers to insert custom phases (e.g. "Phase.Diplomacy", "Phase.Espionage") without C++ changes.
+Phases are defined as `FGameplayTag` values. The default phase sequence is configured as a `TArray<FGameplayTag>` on `UCadenceConductor`, editable in Blueprint.
 
 ```cpp
 // Default phase tags (registered in Project Settings → Gameplay Tags):
@@ -1342,61 +1460,48 @@ Phases are defined as `FGameplayTag` values rather than a hard-coded enum. The d
 //   Phase.EndOfTurn
 ```
 
----
+-----
 
 ### 9b. UTurnManagerSubsystem
 
 ```cpp
 UCLASS()
-class UTurnManagerSubsystem : public UGameInstanceSubsystem
+class UTurnManagerSubsystem : public UCadenceConductor
 {
     GENERATED_BODY()
 public:
-    UPROPERTY(BlueprintReadOnly) int32          CurrentTurn = 1;
-    UPROPERTY(BlueprintReadOnly) FGameplayTag   CurrentPhase;
+    void Initialize(FSubsystemCollectionBase& Collection) override;
 
-    // Ordered phase sequence. Editable in Blueprint to add/reorder phases.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TArray<FGameplayTag> PhaseSequence;
+    // Override to add game-specific phase logic.
+    void AdvancePhase() override;
 
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPhaseChanged, FGameplayTag, NewPhase);
-    UPROPERTY(BlueprintAssignable) FOnPhaseChanged OnPhaseChanged;
-
-    // Player input — all validated against CurrentPhase before acting.
-    UFUNCTION(BlueprintCallable) void AdvancePhase();
-    UFUNCTION(BlueprintCallable) bool PlaceCardInStory(UCardInstance* Card, UStoryInstance* Story, FName SlotID);
-    UFUNCTION(BlueprintCallable) bool RecallCardFromStory(UCardInstance* Card, UStoryInstance* Story, FName SlotID);
-    UFUNCTION(BlueprintCallable) bool CommitStory(UStoryInstance* Story);
-
-    // Called by UEventSubsystem and UStatCheckSession to enqueue
-    // actions for processing during EventResolution.
-    void QueueActions(const TArray<UEventAction*>& Actions);
-
-    // --- Safety Valve ---
-    // Maximum actions drained per EventResolution phase.
-    // If exceeded, remaining actions overflow to the next turn's EventResolution.
-    // A warning is logged when the limit is hit.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 MaxActionsPerPhase = 1000;
+protected:
+    // Game-specific phase hooks.
+    void OnPhaseExecute(FGameplayTag Phase) override;
 
 private:
-    TArray<TObjectPtr<UEventAction>> ActionQueue;
-    int32 CurrentPhaseIndex = 0;
-
-    void ExecutePhase(FGameplayTag Phase);
+    // Phase implementations.
     void Phase_StartOfTurn();
-    void Phase_Execution();
-    void Phase_EventResolution();
     void Phase_Cleanup();
 
-    UTableSubsystem*  GetTable()  const;
-    UEventSubsystem*  GetEvents() const;
-    UStorySubsystem*  GetStories() const;
-    UUndoSubsystem*   GetUndo()   const;
+    // Cached references.
+    TWeakObjectPtr<UTableSubsystem>  Table;
+    TWeakObjectPtr<UEventSubsystem>  Events;
+    TWeakObjectPtr<UStorySubsystem>  Stories;
+    TWeakObjectPtr<UUndoSubsystem>   Undo;
 };
 ```
 
----
+**What it does vs. what it doesn’t:**
+
+`UTurnManagerSubsystem` adds project-specific hooks to the Cadence phase pipeline:
+
+- `Phase_StartOfTurn()`: captures undo snapshot, ticks card lifespans, sends expired cards to Graveyard.
+- `Phase_Cleanup()`: finalizes Graveyard, resets repeatable events, increments turn counter.
+
+It does **not** handle player input (that’s `UStorySubsystem`) or the action queue (that’s `UEventSubsystem`). Its only job is orchestrating the phase clock and adding game-specific hooks to specific phases.
+
+-----
 
 ### 9c. Turn Pipeline
 
@@ -1411,22 +1516,23 @@ StartOfTurn
 
 Planning  [PLAYER INPUT — no automatic advance]
   │
-  ├─ PlaceCardInStory() / RecallCardFromStory()
-  │    → UStorySubsystem validates phase, delegates to UStoryInstance
+  ├─ UStorySubsystem::PlaceCard() / RecallCard()
+  │    → validates Conductor.IsInPhase(Phase.Planning), delegates to UStoryInstance
   │
-  ├─ CommitStory()
-  │    → UStorySubsystem validates all required slots filled
+  ├─ UStorySubsystem::CommitStory()
+  │    → validates all required slots filled
   │    │
   │    ├─ [TurnsToResolve == 0] → UStoryInstance::Commit() → Resolve() fires immediately
+  │    │    ├─ ResolutionPrior evaluated first — may preempt main resolution
   │    │    ├─ UStatCheckSession created; checks resolved sequentially with player input
-  │    │    ├─ Per-check result branch actions → QueueActions()
+  │    │    ├─ Per-check result branch actions → UEventSubsystem::QueueActions()
   │    │    ├─ ReturnOrDestroyCards() per Story definition rules
   │    │    └─ Story removed from Board (bPersistent → reset to Available instead)
   │    │
   │    └─ [TurnsToResolve  > 0] → State = Resolving, placed cards locked
   │         └─ UI shows countdown; Story is no longer interactive this turn
   │
-  └─ AdvancePhase() → player ends turn
+  └─ UCadenceConductor::AdvancePhase() → player ends turn
 
 Execution
   └─ UStorySubsystem::TickPhase(Phase.Execution):
@@ -1435,7 +1541,7 @@ Execution
          └─ TurnsRemaining == 0 → Resolve() → UStatCheckSession → QueueActions()
 
 EventResolution
-  ├─ Drain ActionQueue — execute up to MaxActionsPerPhase actions in order
+  ├─ UEventSubsystem::PostPhase() drains ActionQueue (up to MaxActionsPerPhase)
   │    (may create new Stories, Cards, activate Events, modify Globals)
   │    If MaxActionsPerPhase exceeded:
   │      → Log warning: "[KingsMen] ActionQueue overflow: %d actions deferred to next turn"
@@ -1455,12 +1561,12 @@ Cleanup
 - Immediate Stories resolve during Planning, but their actions execute in EventResolution. This prevents mid-Planning chain reactions where newly spawned Stories could be immediately committed in the same phase.
 - **No rollback for immediate (0-turn) Stories.** This is intentional — once committed, the result stands. However, the Undo system (Section 10) can revert to the end of the previous turn.
 - Persistent Stories reset to `Available` after resolving, reappearing for the next turn without being removed from the Board.
-- The `ActionQueue` is the single handoff point between resolution and consequence. Nothing executes mid-resolution — all effects are deferred to EventResolution, keeping phase behavior predictable.
+- The `ActionQueue` on `UEventSubsystem` is the single handoff point between resolution and consequence. Nothing executes mid-resolution — all effects are deferred to EventResolution, keeping phase behavior predictable.
 - **Card return on Story end.** After resolution, non-consumable cards are returned to Hand by default. Consumable cards (`Type.Consumable` tag) are destroyed. Individual check result actions can override this (e.g. `Action_DestroyCard` to sacrifice a character).
 
----
+-----
 
-## 1 Undo System
+## 10. Undo System
 
 The Undo system captures full board snapshots at the start of each turn, allowing the player to revert to the state at the end of the previous turn (before any current-turn mutations). Up to 5 snapshots are stored.
 
@@ -1472,8 +1578,6 @@ struct FUndoSnapshot
 
     UPROPERTY() int32 TurnNumber;
 
-    // Serialized state of all subsystems at the start of this turn.
-    // Captured before StartOfTurn mutations (lifespan ticks, expirations, event triggers).
     UPROPERTY() TArray<uint8> SerializedTableState;
     UPROPERTY() TArray<uint8> SerializedEventState;
     UPROPERTY() TArray<uint8> SerializedStoryState;
@@ -1484,21 +1588,16 @@ class UUndoSubsystem : public UGameInstanceSubsystem
 {
     GENERATED_BODY()
 public:
-    // Called at the very beginning of StartOfTurn, before any mutations.
     void CaptureSnapshot(UTableSubsystem* Table, UEventSubsystem* Events, UStorySubsystem* Stories);
 
-    // Reverts to the snapshot of a prior turn. Restores all subsystem state.
-    // Returns false if the requested turn is not available.
     bool UndoToTurn(int32 TargetTurn, UTableSubsystem* Table,
                     UEventSubsystem* Events, UStorySubsystem* Stories);
 
-    // Returns the list of available undo turns.
     TArray<int32> GetAvailableUndoTurns() const;
 
     bool CanUndo() const { return Snapshots.Num() > 0; }
 
 private:
-    // Ring buffer of up to MaxSnapshots.
     static constexpr int32 MaxSnapshots = 5;
     TArray<FUndoSnapshot> Snapshots;
 };
@@ -1506,16 +1605,16 @@ private:
 
 **Design notes:**
 
-- Snapshots are captured at the **start** of each turn, which means undoing returns to the state at the end of the previous turn (before the current turn's StartOfTurn phase ran).
-- The undo operation fully replaces all subsystem state — Board, Hand, Pool, Graveyard, Globals, active Events, active Stories.
-- Undo is available during Planning phase only. It is not available mid-resolution.
+- Snapshots are captured at the **start** of each turn, before any StartOfTurn mutations.
+- The undo operation fully replaces all subsystem state.
+- Undo is available during Planning phase only. Not available mid-resolution.
 - Save/load design (TBD) will need to serialize the undo stack as well.
 
----
+-----
 
 ## 11. UI Architecture
 
-Widgets are **purely presentational.** They hold read-only references to runtime instances and receive updates through delegates. They never directly modify game state — all player actions route through `UTurnManagerSubsystem`.
+Widgets are **purely presentational.** They hold read-only references to runtime instances and receive updates through delegates. They never directly modify game state — player card/story actions route through `UStorySubsystem`, and phase advancement routes through `UCadenceConductor`.
 
 ```
 UBoardWidget
@@ -1527,9 +1626,9 @@ UStoryWidget
   ├─ Holds a read-only ref to UStoryInstance
   ├─ Displays: slots (with stack counts), placed cards, turn countdown, stat preview, committed state
   └─ Dispatches:
-       OnCardDropped     → UTurnManagerSubsystem::PlaceCardInStory()
-       OnRecallClicked   → UTurnManagerSubsystem::RecallCardFromStory()
-       OnCommitClicked   → UTurnManagerSubsystem::CommitStory()
+       OnCardDropped     → UStorySubsystem::PlaceCard()
+       OnRecallClicked   → UStorySubsystem::RecallCard()
+       OnCommitClicked   → UStorySubsystem::CommitStory()
 
 UHandWidget
   ├─ Binds to: UTableSubsystem::OnCardAddedToHand, OnCardRemovedFromHand
@@ -1537,7 +1636,7 @@ UHandWidget
 
 UCardWidget
   ├─ Holds a read-only ref to UCardInstance
-  ├─ Renders: name, tags, equipment slots, rarity, lifespan
+  ├─ Renders: name, tags, stats, equipment slots, rarity, lifespan
   └─ Is draggable via UDragDropOperation
 
 UStatCheckWidget
@@ -1545,13 +1644,13 @@ UStatCheckWidget
   ├─ Binds to: UStatCheckSession::OnPendingRollReady
   ├─ Displays: all individual d20 values, aggregated roll, result branch preview
   │    Result text: shown from the previewed branch's ResultTitle + ResultText
+  │    Modifier text: shown from any activated URollModifier's ResultTitle + ResultText
   │    Reroll button: visible only when UStatCheckSession::CanReroll() == true
   │    Reroll button: hidden entirely for static checks (they auto-advance)
   │    Reroll pool: shown as shared count across the full session
   │    NOTE: For static checks, the widget should display a brief animation
   │    pause (~200ms) before auto-advancing to give the player visual
-  │    feedback that a check was evaluated. The session fires the delegate;
-  │    the widget is responsible for timing the pause before confirming.
+  │    feedback that a check was evaluated.
   └─ Dispatches:
        OnRerollClicked   → UStatCheckSession::SpendReroll()
        OnConfirmClicked  → UStatCheckSession::ConfirmCurrentCheck()
@@ -1562,9 +1661,13 @@ UGlobalsWidget
 UUndoButton
   └─ Dispatches: OnUndoClicked → UUndoSubsystem::UndoToTurn()
        Enabled only during Planning phase when UUndoSubsystem::CanUndo()
+
+UAdvancePhaseButton
+  └─ Dispatches: OnClicked → UCadenceConductor::AdvancePhase()
+       Enabled only during Planning phase
 ```
 
----
+-----
 
 ## 12. JSON Serialization & Modding Pipeline
 
@@ -1579,13 +1682,11 @@ This approach:
 - Produces human-readable, diffable source files in version control
 - Keeps the base game and mod content on the same pipeline for consistency
 
-**Mods are JSON-only.** They load at runtime via `UModLoaderSubsystem` and register into `UDefinitionRegistry` alongside shipped content. No drift is possible on the mod side because no DataAsset step exists for mods. Mod security validation is planned for a future revision.
+**Mods are JSON-only.** They load at runtime via `UModLoaderSubsystem` and register into `UDefinitionRegistry` alongside shipped content. Mod security validation is planned for a future revision.
 
----
+-----
 
 ### 12b. UKingsDefinitionBase
-
-All definition DataAssets inherit from this base, which adds the JSON interface and source tracking.
 
 ```cpp
 UCLASS(Abstract)
@@ -1593,15 +1694,12 @@ class UKingsDefinitionBase : public UDataAsset
 {
     GENERATED_BODY()
 public:
-    // Stable string key used in JSON cross-references, mod overrides, and runtime lookups.
     UPROPERTY(EditAnywhere, Category="Source")
     FName DefinitionID;
 
-    // SHA1 hash of the JSON file at last import.
     UPROPERTY(VisibleAnywhere, Category="Source")
     FString SourceJsonHash;
 
-    // Relative path to the JSON source file on disk.
     UPROPERTY(VisibleAnywhere, Category="Source")
     FString SourceJsonPath;
 
@@ -1615,7 +1713,7 @@ private:
 };
 ```
 
----
+-----
 
 ### 12c. Bidirectional Sync
 
@@ -1625,10 +1723,9 @@ private:
 Designer saves DataAsset (Ctrl+S)
   → PostSave fires
   → AutoReimport watcher paused (prevents circular reimport loop)
-  → ExportToJson() writes to Content/Source/
+  → ExportToJson() writes to Data/
   → Write confirmed → SourceJsonHash updated
   → AutoReimport watcher resumed
-  → Both DA_Edwin.uasset and card_edwin.json committed together
 ```
 
 **JSON → DataAsset (on startup or manual reimport):**
@@ -1640,11 +1737,11 @@ Engine starts / designer edits JSON externally
   → DataAsset updated → SourceJsonHash updated
 ```
 
-**Circular trigger prevention.** Without suppression, exporting JSON would trigger UE's `FAutoReimportManager` file watcher, which would reimport the JSON back into the DataAsset, looping infinitely. The `IgnoreFileChanges` scope guard in `ExportToJson()` breaks this loop.
+**Circular trigger prevention.** The `IgnoreFileChanges` scope guard in `ExportToJson()` suppresses UE’s `FAutoReimportManager` file watcher during export, breaking the loop.
 
-**Atomic hash update.** `SourceJsonHash` is only updated after confirming the file write succeeded. A failed write leaves the hash mismatched, so `UDefinitionSyncChecker` correctly flags it on next launch.
+**Atomic hash update.** `SourceJsonHash` is only updated after confirming the file write succeeded.
 
----
+-----
 
 ### 12d. Drift Detection (UDefinitionSyncChecker)
 
@@ -1662,16 +1759,14 @@ private:
 };
 ```
 
-Reports are loud and specific:
-
 ```
-[Kings] DRIFT DETECTED — 2 definition(s) out of sync with JSON source:
+[KingsMen] DRIFT DETECTED — 2 definition(s) out of sync with JSON source:
   DA_PrivateAudience  stored hash: a3f9...  current JSON hash: 7b2c...  → REIMPORT REQUIRED
-  DA_Edwin            source JSON not found at: Content/Source/Cards/card_edwin.json
+  DA_Edwin            source JSON not found at: Data/Cards/card_edwin.json
                       → file may have been moved or deleted
 ```
 
----
+-----
 
 ### 12e. DataAsset Editor — Read-Only Panel
 
@@ -1686,13 +1781,11 @@ public:
 };
 ```
 
----
+-----
 
 ### 12f. Polymorphic Type Registry
 
-Conditions, Actions, and RollModifiers all serialize with a `$type` discriminator so the deserializer knows which subclass to instantiate.
-
-The registry uses `UEngineSubsystem` — it needs to be available before any `UGameInstance` exists (e.g. during editor startup and asset import), and it has no per-game-instance state. `UEngineSubsystem` is initialized once with the engine and persists for the entire process lifetime.
+The registry uses `UEngineSubsystem` — it needs to be available before any `UGameInstance` exists and has no per-game-instance state.
 
 ```cpp
 UCLASS()
@@ -1722,11 +1815,11 @@ REGISTER_CONDITION_TYPE(Condition_TurnNumber,   UCondition_TurnNumber);
 REGISTER_MODIFIER_TYPE(RollMod_CardInSlot,      URollMod_CardInSlot);
 ```
 
----
+-----
 
 ### 12g. Definition Registry (Runtime)
 
-All systems look up definitions by `DefinitionID` through `UDefinitionRegistry`, never by direct UObject pointer. This makes mod overrides transparent.
+All systems look up definitions by `DefinitionID` through `UDefinitionRegistry`, never by direct UObject pointer. This makes mod overrides transparent. Typed maps internally avoid downcast costs on every lookup.
 
 ```cpp
 UCLASS()
@@ -1736,25 +1829,28 @@ class UDefinitionRegistry : public UGameInstanceSubsystem
 public:
     void Initialize(FSubsystemCollectionBase& Collection) override;
 
-    void RegisterCardDef(UCardDefinition* Def);
-    void RegisterStoryDef(UStoryDefinition* Def);
-    void RegisterEventDef(UEventDefinition* Def);
+    // Single entry point — routes by UClass internally. Cast once at registration.
+    void Register(UKingsDefinitionBase* Def);
 
-    UCardDefinition*  FindCard(FName ID)  const;
+    // Typed lookups — no cast, direct map access.
+    UCardDefinition*  FindCard(FName ID) const;
     UStoryDefinition* FindStory(FName ID) const;
     UEventDefinition* FindEvent(FName ID) const;
 
+    // Generic fallback for tooling, debug commands, mod validation.
+    UKingsDefinitionBase* FindAny(FName ID) const;
+
 private:
-    TMap<FName, TObjectPtr<UCardDefinition>>  Cards;
-    TMap<FName, TObjectPtr<UStoryDefinition>> Stories;
-    TMap<FName, TObjectPtr<UEventDefinition>> Events;
+    TMap<FName, TObjectPtr<UCardDefinition>>  CardDefs;
+    TMap<FName, TObjectPtr<UStoryDefinition>> StoryDefs;
+    TMap<FName, TObjectPtr<UEventDefinition>> EventDefs;
 
     void LoadShippedDefinitions();
     void LoadMods();
 };
 ```
 
----
+-----
 
 ### 12h. Mod Loader
 
@@ -1772,20 +1868,20 @@ private:
 };
 ```
 
-Mods are JSON files in `<GameDir>/Mods/`. A mod that registers with an existing `DefinitionID` replaces the shipped definition. All other systems are unaware of the distinction.
+Mods are JSON files in `<GameDir>/Mods/`. A mod that registers with an existing `DefinitionID` replaces the shipped definition.
 
----
+-----
 
 ### 12i. Source Control Conventions
 
-Binary `.uasset` merge conflicts are handled at the **workflow level**, not in code. The industry standard is file locking:
+Binary `.uasset` merge conflicts are handled at the **workflow level**:
 
-- **Git + Git LFS:** `git lfs lock Content/Data/**/*.uasset` before editing a DataAsset.
+- **Git + Git LFS:** `git lfs lock Content/DataAssets/**/*.uasset` before editing.
 - **Perforce:** Exclusive checkout is native.
 
 JSON source files remain freely mergeable as text.
 
----
+-----
 
 ### 12j. JSON Schemas
 
@@ -1794,18 +1890,17 @@ JSON source files remain freely mergeable as text.
 {
   "id": "card.edwin",
   "name": "Edwin",
-  "text": "You — a mere common human professor, and now, entrusted by the young King himself, the unlikely Seneschal of the royal council. What awaits you in this whirlpool of power?"
-  "tags": ["Character.Main", "Character.Human.Commoner", "Character.Gender.Male"
-  ],
-  "stats": [
-    { "Rarity": 2 },
-    { "Stat.Prowess": 3 },
-    { "Stat.Sociability": 1 },
-    { "Stat.Poise": 4 },
-    { "Stat.Scholarship": 5 },
-    { "Stat.Subterfuge": 2 },
-    { "Stat.Influence": 0 }
-  ],
+  "text": "You — a mere common human professor, and now, entrusted by the young King himself, the unlikely Seneschal of the royal council. What awaits you in this whirlpool of power?",
+  "tags": ["Character.Main", "Character.Human.Commoner", "Character.Gender.Male"],
+  "stats": {
+    "Card.Rarity": 2,
+    "Stat.Prowess": 3,
+    "Stat.Sociability": 1,
+    "Stat.Poise": 4,
+    "Stat.Scholarship": 5,
+    "Stat.Subterfuge": 2,
+    "Stat.Influence": 0
+  },
   "equipment_slots": ["Slot.Weapon", "Slot.Accessory", "Slot.Accessory", "Slot.Attire", "Slot.Animal"]
 }
 
@@ -1813,29 +1908,28 @@ JSON source files remain freely mergeable as text.
 {
   "id": "card.HyacinthFlower",
   "name": "Hyacinth Flower",
-  "text": "Beautiful purple flower. "
-  "tags": ["Equipment.Adornment", "Trait.FreshFlower"  ],
-  "stats": [
-    { "Rarity": 1 },
-    { "Mechanic.Reroll": 1 },
-    { "Mechanic.Expire": 2 }
-  ],
+  "text": "Beautiful purple flower.",
+  "tags": ["Equipment.Adornment", "Trait.FreshFlower"],
+  "stats": {
+    "Card.Rarity": 1,
+    "Mechanic.Reroll": 1,
+    "Mechanic.Expire": 2
+  },
   "equipment_slots": []
 }
 
 // event_succession_crisis.json
 {
   "id": "event.succession_crisis",
-  "type": "EventDefinition",
   "repeatable": false,
   "trigger_phase": "StartOfTurn",
   "conditions": [
-    { "$type": "Condition_TurnNumber",     "turn": 5 },
+    { "$type": "Condition_TurnNumber", "turn": 5 },
     { "$type": "Condition_GlobalVariable", "key": "gv.KingdomStability",
-                                           "operator": "LessThan", "value": 30 }
+      "operator": "LessThan", "value": 30 }
   ],
   "actions": [
-    { "$type": "Action_CreateStory",  "story_id": "story.royal_audit" },
+    { "$type": "Action_CreateStory", "story_id": "story.royal_audit" },
     { "$type": "Action_ModifyGlobal", "key": "gv.CourtTension", "delta": 15 }
   ]
 }
@@ -1843,7 +1937,7 @@ JSON source files remain freely mergeable as text.
 
 Full Story JSON example is in Section 7k.
 
----
+-----
 
 ## 13. Data Flow Summary
 
@@ -1851,7 +1945,8 @@ Full Story JSON example is in Section 7k.
 JSON source file  →  [Import / PostSave export]  →  UDataAsset
                                                           │
                                               UDefinitionRegistry
-                                           (lookup by DefinitionID)
+                                          (Register() routes by type;
+                                           typed FindXxx() lookups)
                                                           │
                          ┌────────────────────────────────┤
                          │                                │
@@ -1865,12 +1960,14 @@ JSON source file  →  [Import / PostSave export]  →  UDataAsset
             [Trigger] UEventAction::Execute()    [Player drags]
                          │                                │
                          ├──→ UStorySubsystem::AddStory() │
-                         │         │              PlaceCardInStory()
+                         │         │       UStorySubsystem::PlaceCard()
                          │    UStoryInstance               │
                          │    (Board_Stories)       UStoryInstance::PlaceCard()
                          │                          (supports stacking)
                          │                                │
-                         │                       CommitStory()
+                         │                UStorySubsystem::CommitStory()
+                         │                               │
+                         │               ResolutionPrior evaluated (may preempt)
                          │                               │
                          │                    UStatCheckSession created
                          │                               │
@@ -1886,7 +1983,7 @@ JSON source file  →  [Import / PostSave export]  →  UDataAsset
                          │             Per-check result actions queued
                          │             Story returns/destroys cards per rules
                          │                               │
-                         └───────────────→  UTurnManagerSubsystem::QueueActions()
+                         └───────────────→  UEventSubsystem::QueueActions()
                                                          │
                                               EventResolution phase:
                                               Actions drain (up to MaxActionsPerPhase)
@@ -1898,27 +1995,27 @@ JSON source file  →  [Import / PostSave export]  →  UDataAsset
                                                     UI Widgets
 ```
 
----
+-----
 
 ## 14. Implementation Order
 
-|Phase|Milestone|Systems|
-|---|---|---|
-|1|Card foundation|`FCardTag` (FGameplayTag), `UCardDefinition`, `UCardInstance`, `CachedTagValues`, basic `UTableSubsystem` Hand ops|
-|2|Table & globals|Full `UTableSubsystem`, `UDefinitionRegistry`, Global Variables (FGameplayTag keys), TagIndex|
-|3|Cadence base|`ICadence`, `UCadenceSystem`, phase-filtered ticking|
-|4|Story placement|`UStoryDefinition`, `UStoryInstance`, `FStorySlotDefinition`/`FStorySlotState`, slot stacking, `EStoryState`, `UStorySubsystem`|
-|5|Turn loop|`UTurnManagerSubsystem`, configurable phase sequence, Planning → Execution pipeline|
-|6|Stat checks — static|`UStatCheck` (concrete), `FStatScope`, `UStatCheckResult`, `UStatCheckSession` static path|
-|7|Stat checks — dice|`ERollAggregate`, `URollModifier` base + shipped subclasses, d20 pool resolution, `FPendingRollData`|
-|8|Reroll system|`RemainingRerolls`, `SpendReroll()`, `OnPendingRollReady`, `UStatCheckWidget`|
-|9|Event backbone|`UEventDefinition`, `UEventCondition`/`UEventAction` base classes, `UEventSubsystem` with uniqueness enforcement|
-|10|Event content|Concrete Condition/Action subclasses, `UDefinitionTypeRegistry` (UEngineSubsystem)|
-|11|Event pipeline|`UEventInstance`, full cadence integration, chaining via `ActionQueue`, `MaxActionsPerPhase` overflow|
-|12|Undo system|`FUndoSnapshot`, `UUndoSubsystem`, snapshot capture/restore|
-|13|UI|Board, Hand, Card, Story, StatCheck widgets; drag-drop; all delegate bindings; static check animation pause|
-|14|Serialization|`UKingsDefinitionBase`, `ToJson`/`FromJson` per type|
-|15|Editor tooling|`UDefinitionSyncChecker`, read-only detail panel, `PostSave` auto-export|
-|16|Mod loading|`UModLoaderSubsystem`, mod override support in `UDefinitionRegistry`|
-|17|Save/Load|TBD — will be designed separately|
-|18|First content|Edwin card, Private Audience Story, default event collection, first playable loop|
+|Phase|Milestone           |Systems                                                                                                                                                               |
+|-----|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|1    |Card foundation     |`FGameplayTagContainer` Tags, `TMap<FGameplayTag,int32>` Stats, `UCardDefinition`, `UCardInstance`, `MergedTags`/`MergedStats` cache, basic `UTableSubsystem` Hand ops|
+|2    |Table & globals     |Full `UTableSubsystem`, `UDefinitionRegistry` (unified `Register()`, typed maps), Global Variables, TagIndex                                                          |
+|3    |Cadence module      |`ICadence`, `UCadenceSystem`, `UCadenceConductor` (abstract), phase-filtered ticking                                                                                  |
+|4    |Story placement     |`UStoryDefinition`, `UStoryInstance`, `FStorySlotDefinition`/`FStorySlotState`, slot stacking, `EStoryState`, `UStorySubsystem` (with player input methods)           |
+|5    |Turn loop           |`UTurnManagerSubsystem` (extends `UCadenceConductor`), game-specific phase hooks, Planning → Execution pipeline                                                       |
+|6    |Stat checks — static|`UStatCheck` (concrete), `FStatScope`, `UStatCheckResult`, `UStatCheckSession` static path                                                                            |
+|7    |Stat checks — dice  |`ERollAggregate`, `URollModifier` base + shipped subclasses, d20 pool resolution, `FPendingRollData`                                                                  |
+|8    |Reroll system       |`RemainingRerolls`, `SpendReroll()`, `OnPendingRollReady`, `UStatCheckWidget`                                                                                         |
+|9    |Event backbone      |`UEventDefinition`, `UEventCondition`/`UEventAction` base classes, `UEventSubsystem` with uniqueness enforcement + ActionQueue                                        |
+|10   |Event content       |Concrete Condition/Action subclasses (`BoxOption`, `Speech`, `GlobalTag`, etc.), `UDefinitionTypeRegistry` (UEngineSubsystem)                                         |
+|11   |Event pipeline      |`UEventInstance`, full cadence integration, `MaxActionsPerPhase` overflow                                                                                             |
+|12   |Undo system         |`FUndoSnapshot`, `UUndoSubsystem`, snapshot capture/restore                                                                                                           |
+|13   |UI                  |Board, Hand, Card, Story, StatCheck widgets; drag-drop; all delegate bindings; static check animation pause                                                           |
+|14   |Serialization       |`UKingsDefinitionBase`, `ToJson`/`FromJson` per type                                                                                                                  |
+|15   |Editor tooling      |`UDefinitionSyncChecker`, read-only detail panel, `PostSave` auto-export                                                                                              |
+|16   |Mod loading         |`UModLoaderSubsystem`, mod override support in `UDefinitionRegistry`                                                                                                  |
+|17   |Save/Load           |TBD — will be designed separately                                                                                                                                     |
+|18   |First content       |Edwin card, Private Audience Story, default event collection, first playable loop                                                                                     |
