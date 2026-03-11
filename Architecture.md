@@ -27,7 +27,7 @@
 
 ## Systems Overview
 
-The King’s Men is a card-based time management strategy game. Players manage a falling kingdom by placing cards representing characters, resources, and abstract concepts into Stories — interactive affairs that resolve over time and produce narrative consequences.
+The King's Men is a card-based time management strategy game. Players manage a falling kingdom by placing cards representing characters, resources, and abstract concepts into Stories — interactive affairs that resolve over time and produce narrative consequences.
 
 The gameplay architecture is organized around five systems:
 
@@ -50,9 +50,9 @@ This data-oriented approach separates logic and data, allows for clean and modul
 
 `URollModifier`, `UEventCondition`, and `UEventAction` all use the same `Abstract` + `EditInlineNew` + `Instanced` UObject pattern. This means that designers can define new variants of Rolls, Conditions, and Actions in Blueprint without new C++ changes, following one known path throughout the codebase.
 
-**Tag over Names.** Where possible, identifiers and tag keys use Unreal’s `FGameplayTag` / `FGameplayTagContainer` system. This provides hierarchical tag queries (e.g. `Stat.Diplomacy`, `Type.Character.Main`), native editor validation, and future compatibility with the Gameplay Ability System. `FName` is still used for string identifiers that are not tag-based (e.g. `DefinitionID`, `SlotID`, `InstanceID`).
+**Tag over Names.** Where possible, identifiers and tag keys use Unreal's `FGameplayTag` / `FGameplayTagContainer` system. This provides hierarchical tag queries (e.g. `Stat.Diplomacy`, `Type.Character.Main`), native editor validation, and future compatibility with the Gameplay Ability System. `FName` is still used for string identifiers that are not tag-based (e.g. `DefinitionID`, `SlotID`, `InstanceID`).
 
-**Tags vs. Stats split.** Card properties are divided into two structures: `FGameplayTagContainer` for categorical/presence queries (“is this a character?”, “does this have any Equipment.* tag?”) and `TMap<FGameplayTag, int32>` for numeric values that get summed, compared, and aggregated (“what is this card’s Stat.Diplomacy?”). This avoids polluting the tag container with fake boolean values and gives each query type its optimal data structure.
+**Tags vs. Stats split.** Card properties are divided into two structures: `FGameplayTagContainer` for categorical/presence queries (“is this a character?”, “does this have any Equipment.* tag?”) and `TMap<FGameplayTag, int32>` for numeric values that get summed, compared, and aggregated (“what is this card's Stat.Diplomacy?”). This avoids polluting the tag container with fake boolean values and gives each query type its optimal data structure.
 
 **Event-driven Game States.** To  keep the responsibility clean, UI widgets bind to delegates on `UTableSubsystem` and each of all subsystems. The UI and player controller never poll or write game state on the Table — all player actions route through the `UStorySubsystem` (for card placement and story interaction) or `UTurnManagerSubsystem` (for phase advancement).
 
@@ -151,7 +151,7 @@ Mods/                                    # Runtime mod directory — JSON only, 
 
 ## 3. Card System
 
-Cards are the core representation of player’s resources. Their mechanics and attributes are represented through two complementary structures — a `FGameplayTagContainer` for categorical presence queries and a `TMap<FGameplayTag, int32>` for numeric stats — plus equipment (attached cards).
+Cards are the core representation of player's resources. Their mechanics and attributes are represented through two complementary structures — a `FGameplayTagContainer` for categorical presence queries and a `TMap<FGameplayTag, int32>` for numeric stats — plus equipment (attached cards).
 
 Cards are created from immutable definition templates, and managed at runtime through instances. Serialization will record both the template and runtime changes in stats, tags, and equipment.
 
@@ -243,9 +243,9 @@ public:
 
 **Notes:**
 
-**`TWeakObjectPtr` for `Definition`.** `TWeakObjectPtr` holds a reference that does not prevent garbage collection. If the underlying `UCardDefinition` DataAsset is unloaded — for example during a hot-reload of mod definitions, or if the definition registry replaces a shipped definition with a mod override — the weak pointer gracefully becomes null rather than keeping a stale definition alive in memory. This avoids two problems: (1) memory leaks where replaced definitions are never GC’d because instances still hold strong references, and (2) silent bugs where instances reference an outdated definition after a mod override. Code that reads `Definition` should null-check it (in practice, definitions are always valid during normal gameplay, but the weak pointer makes the contract explicit and safe against edge cases).
+**`TWeakObjectPtr` for `Definition`.** `TWeakObjectPtr` holds a reference that does not prevent garbage collection. If the underlying `UCardDefinition` DataAsset is unloaded — for example during a hot-reload of mod definitions, or if the definition registry replaces a shipped definition with a mod override — the weak pointer gracefully becomes null rather than keeping a stale definition alive in memory. This avoids two problems: (1) memory leaks where replaced definitions are never GC'd because instances still hold strong references, and (2) silent bugs where instances reference an outdated definition after a mod override. Code that reads `Definition` should null-check it (in practice, definitions are always valid during normal gameplay, but the weak pointer makes the contract explicit and safe against edge cases).
 
-**Cached merged values.** `MergedTags` and `MergedStats` aggregate the card’s own data plus all equipped card contributions. `MergedTags` is a `FGameplayTagContainer` built by merging the card’s `Tags` with every equipped card’s `Tags` — enabling hierarchical presence queries like `HasTag("Equipment")` or `HasAnyTag(SlotRequirements)`. `MergedStats` is a `TMap<FGameplayTag, int32>` built by summing the card’s `Stats` with every equipped card’s `Stats`. Both are rebuilt by `RebuildCache()` whenever tags, stats, or equipment change. All queries read from the cache for O(1) lookups, eliminating repeated linear scans during stat checks.
+**Cached merged values.** `MergedTags` and `MergedStats` aggregate the card's own data plus all equipped card contributions. `MergedTags` is a `FGameplayTagContainer` built by merging the card's `Tags` with every equipped card's `Tags` — enabling hierarchical presence queries like `HasTag("Equipment")` or `HasAnyTag(SlotRequirements)`. `MergedStats` is a `TMap<FGameplayTag, int32>` built by summing the card's `Stats` with every equipped card's `Stats`. Both are rebuilt by `RebuildCache()` whenever tags, stats, or equipment change. All queries read from the cache for O(1) lookups, eliminating repeated linear scans during stat checks.
 
 **Lifespan via Stats.** Expiration is stored as `Mechanic.Expire` in the Stats map rather than as a separate field. `TickLifespan()` reads and decrements this value. A card with no `Mechanic.Expire` key (or value 0) is permanent.
 
@@ -371,7 +371,7 @@ protected:
 };
 ```
 
-`TickPhase` captures each unit’s state before calling `Tick()`. If the state changes, it broadcasts `OnUnitStateChanged`. Units returning `true` are removed and `OnUnitRemoved` is broadcast. Subclasses add typed, domain-specific delegates on top, wrapping the base delegates with fully-typed payloads.
+`TickPhase` captures each unit's state before calling `Tick()`. If the state changes, it broadcasts `OnUnitStateChanged`. Units returning `true` are removed and `OnUnitRemoved` is broadcast. Subclasses add typed, domain-specific delegates on top, wrapping the base delegates with fully-typed payloads.
 
 -----
 
@@ -419,7 +419,7 @@ protected:
 
 ## 5. Event System (Cadence)
 
-Events are the **invisible engine** of the board. They never accept direct player input. Their role is to activate Stories, create cards, modify globals, and chain into further events — driving the game’s narrative state machine in the background.
+Events are the **invisible engine** of the board. They never accept direct player input. Their role is to activate Stories, create cards, modify globals, and chain into further events — driving the game's narrative state machine in the background.
 
 ### 5a. Why a State Machine?
 
@@ -431,7 +431,7 @@ The three states give precise control over *when* an event acts, not just *wheth
 
 **Event ID uniqueness on the Board.** No two event instances with the same `DefinitionID` may exist on the Board simultaneously. When `ActivateEvent()` is called, the subsystem first checks whether an instance of that definition is already active. If so, the activation is silently ignored (no-op). This eliminates cascading duplicate events and makes it structurally impossible for the same event to fire more than once at a time.
 
-**Chaining rules.** When Event A’s action activates Event B, Event B enters `Activated` this phase but won’t `Trigger` until the next eligible phase check. `EEventTriggerPhase::Immediate` means “evaluate at the next phase boundary regardless of which phase that is” — it does **not** mean “evaluate right now within the current action drain.” This ensures deterministic ordering and prevents unbounded recursive chains.
+**Chaining rules.** When Event A's action activates Event B, Event B enters `Activated` this phase but won't `Trigger` until the next eligible phase check. `EEventTriggerPhase::Immediate` means “evaluate at the next phase boundary regardless of which phase that is” — it does **not** mean “evaluate right now within the current action drain.” This ensures deterministic ordering and prevents unbounded recursive chains.
 
 ```cpp
 UENUM(BlueprintType)
@@ -756,7 +756,7 @@ public:
 };
 ```
 
-**No Story-level success/failure actions.** All outcome logic is defined per-check via result branches (see Section 7). This makes each check self-contained. `ResolutionPrior` allows early-exit branches that preempt main resolution — such as presenting a blackmail item that completely changes the story’s direction.
+**No Story-level success/failure actions.** All outcome logic is defined per-check via result branches (see Section 7). This makes each check self-contained. `ResolutionPrior` allows early-exit branches that preempt main resolution — such as presenting a blackmail item that completely changes the story's direction.
 
 -----
 
@@ -871,7 +871,7 @@ Where:
 - `n = 1 + Σ(modifier.Evaluate())` — base pool is always 1; modifiers contribute bonus dice when their conditions are met
 - `Aggregate = Max` (advantage, default) or `Min` (disadvantage, punishing)
 - `SummedStat` = sum of named stats across cards in specified slots, including equipment
-- `final_result` is then evaluated against the check’s result branches in order
+- `final_result` is then evaluated against the check's result branches in order
 
 Static checks skip dice entirely: evaluate `SummedStat` against result branch conditions. No roll, no modifiers, no rerolls.
 
@@ -1493,14 +1493,14 @@ private:
 };
 ```
 
-**What it does vs. what it doesn’t:**
+**What it does vs. what it doesn't:**
 
 `UTurnManagerSubsystem` adds project-specific hooks to the Cadence phase pipeline:
 
 - `Phase_StartOfTurn()`: captures undo snapshot, ticks card lifespans, sends expired cards to Graveyard.
 - `Phase_Cleanup()`: finalizes Graveyard, resets repeatable events, increments turn counter.
 
-It does **not** handle player input (that’s `UStorySubsystem`) or the action queue (that’s `UEventSubsystem`). Its only job is orchestrating the phase clock and adding game-specific hooks to specific phases.
+It does **not** handle player input (that's `UStorySubsystem`) or the action queue (that's `UEventSubsystem`). Its only job is orchestrating the phase clock and adding game-specific hooks to specific phases.
 
 -----
 
@@ -1738,7 +1738,7 @@ Engine starts / designer edits JSON externally
   → DataAsset updated → SourceJsonHash updated
 ```
 
-**Circular trigger prevention.** The `IgnoreFileChanges` scope guard in `ExportToJson()` suppresses UE’s `FAutoReimportManager` file watcher during export, breaking the loop.
+**Circular trigger prevention.** The `IgnoreFileChanges` scope guard in `ExportToJson()` suppresses UE's `FAutoReimportManager` file watcher during export, breaking the loop.
 
 **Atomic hash update.** `SourceJsonHash` is only updated after confirming the file write succeeded.
 

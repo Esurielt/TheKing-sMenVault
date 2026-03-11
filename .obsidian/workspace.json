@@ -173,12 +173,13 @@
             "state": {
               "type": "outline",
               "state": {
+                "file": "Architecture.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline"
+              "title": "Outline of Architecture"
             }
           },
           {
@@ -218,7 +219,7 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "7930e878187f51a5",
+  "active": "36b0a5fa068b1024",
   "lastOpenFiles": [
     "Architecture.md",
     "Sultan's Game Docs/音效sfx表怎么使用(sfx).pdf",
