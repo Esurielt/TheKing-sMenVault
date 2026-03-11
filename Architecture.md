@@ -25,29 +25,26 @@
 
 -----
 
-## 1. Systems Overview
+## Systems Overview
 
 The King’s Men is a card-based time management strategy game. Players manage a falling kingdom by placing cards representing characters, resources, and abstract concepts into Stories — interactive affairs that resolve over time and produce narrative consequences.
 
-The gameplay architecture is organized around six systems:
+The gameplay architecture is organized around five systems:
 
-- **Card System** — Instances with tag-value pairs, equipment (other attached cards), and lifespan
-- **Event System** — Background state machine driving the game narrative
-- **Story System** — Player-interactive affairs with slots, timers, and stat checks
-- **Stat Check System** — Condition-driven dice pool resolution with per-check result branches
+- **Card** — Instances with rarity, tags, tag-value pairs, equipment (other attached cards)
+- **Event System** — Background mini state machine chaining together, engine of the game narrative
+- **Story System** — Player-interactive text with slots, timers, stat check, and branching resolution
 - **Turn Manager Subsystem** — Orchestrates the phase pipeline, coordinating all other subsystems
-- **Table Subsystem** — Pure data layer; unified source of truth for all game state
+- **Table Subsystem** — Pure data layer; unified source of truth for all game state including Event, Story, and card ownership. 
 
 ### Data-Oriented Implementation
 
-**Definition vs. Instance split.** Every game object has two representations:
+Every game object has two representations:
 
 - `UXxxDefinition` — immutable `UDataAsset`, the template to create runtime instances, with a unique `DefinitionID` (`FName` generated from `FGuid`) for unambiguous identification in save/load, logging, and cross-system lookups.
 - `UXxxInstance` — mutable `UObject`, created from a definition at runtime with a unique `InstanceID` as well.
 
-This data-oriented approach separates logic and data, allows for clean and modular authoring; it serializes only instance state, reference definitions by their stable `DefinitionID` string. New card types, event chains, Story behaviours, roll modifiers, and stat checks can be authored in JSON and imported as DataAssets. No C++ changes are required to add new content.
-
-**Event-driven Game States.** To further decouple the system and keep the responsibility clean, UI widgets bind to delegates on `UTableSubsystem` and subsystems. The UI and player controller never poll or write game state — all player actions route through `UStorySubsystem` (for card placement and story interaction) or `UTurnManagerSubsystem` (for phase advancement).
+This data-oriented approach separates logic and data, allows for clean and modular authoring; it serializes only instance state, reference definitions by their stable `DefinitionID` string. New card types, event chains, Story behaviours, roll modifiers, and stat checks can be authored in-engine as DataAssets or in JSON and imported on startup. No C++ changes are required to add new content.
 
 **Polymorphism.** The implementation also takes advantage of polymorphic instanced objects in Data Assets for a modular blueprint experience.
 
@@ -57,9 +54,11 @@ This data-oriented approach separates logic and data, allows for clean and modul
 
 **Tags vs. Stats split.** Card properties are divided into two structures: `FGameplayTagContainer` for categorical/presence queries (“is this a character?”, “does this have any Equipment.* tag?”) and `TMap<FGameplayTag, int32>` for numeric values that get summed, compared, and aggregated (“what is this card’s Stat.Diplomacy?”). This avoids polluting the tag container with fake boolean values and gives each query type its optimal data structure.
 
+**Event-driven Game States.** To  keep the responsibility clean, UI widgets bind to delegates on `UTableSubsystem` and each of all subsystems. The UI and player controller never poll or write game state on the Table — all player actions route through the `UStorySubsystem` (for card placement and story interaction) or `UTurnManagerSubsystem` (for phase advancement).
+
 ### Cadence
 
-Cadence System is the data-driven turn manager for any game object that updates through phases. It is the concept at the heart of the Events, Story, and Turn Manager systems. Cadence has zero project-specific dependencies — it is a standalone module publishable on FAB.
+Cadence System is the data-driven turn manager for any game object that updates through phases. It is the concept at the heart of the Events, Story, and Turn Manager systems. Cadence has zero project-specific dependencies — it is a standalone module for any stateful content.
 
 Cadence consists of:
 
@@ -1386,6 +1385,8 @@ Player calls ConfirmCurrentCheck():
 ## 8. Table Subsystem
 
 `UTableSubsystem` is the **pure data layer** — it owns all game state collections and exposes delegates for the UI. It contains no logic; all logic lives in `UEventSubsystem` and `UStorySubsystem`.
+
+
 
 Keeping state in a single subsystem makes cross-system queries trivial (`GetCardsWithTag`, `FindStoryByID`), centralizes the delegate surface for UI bindings, and keeps save/load simple. It extends `UGameInstanceSubsystem` so it persists across level loads and is accessible anywhere via `GetGameInstance()->GetSubsystem<UTableSubsystem>()`.
 
